@@ -694,6 +694,7 @@ body.light .tab-cat-menu{background:#fff;box-shadow:0 8px 30px rgba(0,0,0,0.12);
           <div class="tab" data-tab="rpc" onclick="switchTab(this)">&#128225; RPC Monitor</div>
           <div class="tab" data-tab="notes" onclick="switchTab(this)">&#128221; Notes</div>
           <div class="tab" data-tab="taxreport" onclick="switchTab(this)">&#128181; Tax Report</div>
+          <div class="tab" data-tab="upgrades" onclick="switchTab(this)">&#11014; Upgrades</div>
         </div>
       </div>
       <div class="tab-cat">
@@ -1394,6 +1395,65 @@ body.light .tab-cat-menu{background:#fff;box-shadow:0 8px 30px rgba(0,0,0,0.12);
       </div>
     </div>
 
+    <!-- Chain Upgrades -->
+    <div class="tab-content" id="tab-upgrades" style="display:none">
+      <div class="grid g3">
+        <div class="card">
+          <div class="card-header"><span class="card-title">&#11014; Pending Upgrade</span></div>
+          <div class="metric-value" id="ugPlanName" style="font-size:18px">None</div>
+          <div class="metric-label" id="ugPlanHeight">No upgrade scheduled</div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">&#128230; Remote Binary</span></div>
+          <div class="metric-value" id="ugRemoteStatus" style="font-size:16px">-</div>
+          <div class="metric-label" id="ugRemoteInfo">Checking...</div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">&#128190; Local Binary</span></div>
+          <div class="metric-value" id="ugLocalStatus" style="font-size:16px">-</div>
+          <div class="metric-label" id="ugLocalInfo">-</div>
+        </div>
+      </div>
+      <div class="grid g2" style="margin-top:16px">
+        <div class="card">
+          <div class="card-header"><span class="card-title">&#128295; Binary Management</span></div>
+          <div style="padding:12px 0">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+              <button class="primary" id="ugDownloadBtn" onclick="doUpgradeDownload()" disabled>&#11015; Download Latest Binary</button>
+              <button id="ugApplyBtn" onclick="doUpgradeApply()" disabled style="background:var(--orange);color:#000">&#9889; Apply Upgrade &amp; Restart</button>
+              <button id="ugRollbackBtn" onclick="doUpgradeRollback()" disabled style="background:var(--red-bg);color:var(--red)">&#8617; Rollback to Previous</button>
+            </div>
+            <div id="ugDownloadProgress" style="display:none;margin-bottom:12px">
+              <div class="metric-label">Downloading binary...</div>
+              <div style="height:6px;background:var(--bg3);border-radius:3px;overflow:hidden;margin-top:4px"><div id="ugProgressBar" style="height:100%;background:var(--cyan);width:0%;transition:width 0.3s"></div></div>
+            </div>
+            <div id="ugActionResult" style="display:none;padding:8px 12px;border-radius:8px;margin-top:8px"></div>
+          </div>
+          <div style="font-size:11px;color:var(--text3);border-top:1px solid var(--border);padding-top:8px">
+            <div style="margin-bottom:4px"><strong>Active binary SHA256:</strong> <span class="mono" id="ugLocalSha" style="word-break:break-all">-</span></div>
+            <div style="margin-bottom:4px"><strong>Staged upgrade SHA256:</strong> <span class="mono" id="ugUpgradeSha" style="word-break:break-all">-</span></div>
+            <div><strong>Remote last modified:</strong> <span id="ugRemoteDate">-</span></div>
+          </div>
+        </div>
+        <div class="card" style="align-self:start">
+          <div class="card-header"><span class="card-title">&#128161; How Upgrades Work</span></div>
+          <div style="font-size:12px;color:var(--text2);line-height:1.6">
+            <p style="margin:0 0 8px">When a governance proposal for a chain upgrade passes, the node halts at the specified block height and requires a new binary.</p>
+            <p style="margin:0 0 8px"><strong>1.</strong> Click <em>Download Latest Binary</em> to fetch the upgrade binary from the Hyve release server.</p>
+            <p style="margin:0 0 8px"><strong>2.</strong> Click <em>Apply Upgrade &amp; Restart</em> to swap the binary and restart the node.</p>
+            <p style="margin:0"><strong>3.</strong> If there are issues, use <em>Rollback</em> to restore the previous binary.</p>
+          </div>
+        </div>
+      </div>
+      <div class="card" style="padding:0;margin-top:16px">
+        <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+          <span class="card-title">&#128220; Upgrade History (Governance Proposals)</span>
+          <button onclick="loadUpgrades()" style="padding:5px 14px;font-size:11px">&#8635; Refresh</button>
+        </div>
+        <div style="overflow-x:auto"><table><thead><tr><th>Proposal</th><th>Name</th><th>Height</th><th>Status</th><th>Info</th></tr></thead><tbody id="ugHistoryTable"><tr><td colspan="5" style="text-align:center;color:var(--text3)">Click tab to load...</td></tr></tbody></table></div>
+      </div>
+    </div>
+
     <!-- Whale Alerts -->
     <div class="tab-content" id="tab-whalealerts" style="display:none">
       <div class="card" style="padding:0">
@@ -1567,6 +1627,7 @@ function switchTab(el){
   if(el.dataset.tab==='commission') loadCommission();
   if(el.dataset.tab==='consensus') loadConsensus();
   if(el.dataset.tab==='whalealerts') loadWhaleAlerts();
+  if(el.dataset.tab==='upgrades') loadUpgrades();
 }
 
 // ── Chart Setup ──
@@ -3134,6 +3195,165 @@ async function loadWhaleAlerts(){
       return'<tr><td>'+badge+whale+'</td><td class="mono">'+fmt(e.amount)+'</td><td class="mono" style="font-size:11px">'+addr+'</td><td class="mono">'+e.height+'</td><td style="font-size:11px">'+ts+'</td></tr>';
     }).join('');
   }catch(e){console.error('loadWhaleAlerts',e);}
+}
+
+// ── Chain Upgrades ──
+async function loadUpgrades(){
+  try{
+    const r=await fetch('/api/upgrades');const d=await r.json();
+    // Pending upgrade plan
+    var plan=d.current_plan;
+    if(plan){
+      document.getElementById('ugPlanName').textContent=plan.name||'Unknown';
+      document.getElementById('ugPlanName').style.color='var(--orange)';
+      var blocksLeft=parseInt(plan.height||0)-d.current_height;
+      document.getElementById('ugPlanHeight').textContent='Height '+fmt(parseInt(plan.height||0))+' ('+fmt(blocksLeft)+' blocks away)';
+    } else {
+      document.getElementById('ugPlanName').textContent='None';
+      document.getElementById('ugPlanName').style.color='var(--green)';
+      document.getElementById('ugPlanHeight').textContent='No upgrade scheduled';
+    }
+    // Remote binary
+    var rb=d.remote_binary||{};
+    if(rb.size>0){
+      var sizeMb=(rb.size/1048576).toFixed(1);
+      document.getElementById('ugRemoteStatus').textContent=sizeMb+' MB';
+      document.getElementById('ugRemoteStatus').style.color='var(--cyan)';
+      document.getElementById('ugRemoteInfo').textContent=rb.last_modified?'Modified: '+rb.last_modified:'Available';
+      document.getElementById('ugRemoteDate').textContent=rb.last_modified||'-';
+    } else {
+      document.getElementById('ugRemoteStatus').textContent='Unavailable';
+      document.getElementById('ugRemoteStatus').style.color='var(--text3)';
+      document.getElementById('ugRemoteInfo').textContent='Release server unreachable';
+    }
+    // Local binary
+    var lb=d.local_binary||{};
+    var ub=d.upgrade_binary||{};
+    if(lb.size>0){
+      var lMb=(lb.size/1048576).toFixed(1);
+      document.getElementById('ugLocalStatus').textContent=lMb+' MB';
+      document.getElementById('ugLocalStatus').style.color='var(--green)';
+      document.getElementById('ugLocalInfo').textContent=ub.exists?'Upgrade binary staged ('+((ub.size/1048576).toFixed(1))+' MB)':'No upgrade binary staged';
+    } else {
+      document.getElementById('ugLocalStatus').textContent='Not found';
+      document.getElementById('ugLocalStatus').style.color='var(--red)';
+      document.getElementById('ugLocalInfo').textContent='hyved binary missing!';
+    }
+    document.getElementById('ugLocalSha').textContent=lb.sha256||'-';
+    document.getElementById('ugUpgradeSha').textContent=ub.exists?(ub.sha256||'-'):'(none)';
+    // Button states
+    var urlOk=d.release_url_configured;
+    document.getElementById('ugDownloadBtn').disabled=!urlOk||!(rb.size>0);
+    document.getElementById('ugApplyBtn').disabled=!ub.exists;
+    document.getElementById('ugRollbackBtn').disabled=false;
+    // Not configured notice
+    if(!urlOk){
+      document.getElementById('ugRemoteStatus').textContent='Not configured';
+      document.getElementById('ugRemoteStatus').style.color='var(--text3)';
+      document.getElementById('ugRemoteInfo').textContent='Set BINARY_RELEASE_URL in .env';
+      document.getElementById('ugDownloadBtn').textContent='\u2B07 Release URL Not Configured';
+      document.getElementById('ugDownloadBtn').style.background='';
+      document.getElementById('ugDownloadBtn').style.color='';
+    } else if(d.new_binary_available){
+      document.getElementById('ugDownloadBtn').textContent='\u2B07 Download New Binary Available!';
+      document.getElementById('ugDownloadBtn').style.background='var(--orange)';
+      document.getElementById('ugDownloadBtn').style.color='#000';
+    } else {
+      document.getElementById('ugDownloadBtn').textContent='\u2B07 Download Latest Binary';
+      document.getElementById('ugDownloadBtn').style.background='';
+      document.getElementById('ugDownloadBtn').style.color='';
+    }
+    // Upgrade history table
+    var hist=d.upgrade_history||[];
+    var tb=document.getElementById('ugHistoryTable');
+    if(!hist.length){tb.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--text3)">No upgrade proposals found</td></tr>';return;}
+    tb.innerHTML=hist.map(function(u){
+      var applied=u.applied?'<span class="badge green">Applied</span>':'<span class="badge orange">Pending</span>';
+      var info=u.info||'';
+      if(info.length>120)info=info.slice(0,120)+'...';
+      return '<tr><td class="mono">#'+u.proposal_id+'</td><td>'+u.name+'</td><td class="mono">'+fmt(u.height)+'</td><td>'+applied+'</td><td style="font-size:11px;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+info+'</td></tr>';
+    }).join('');
+  }catch(e){console.error('loadUpgrades',e);}
+}
+async function doUpgradeDownload(){
+  var btn=document.getElementById('ugDownloadBtn');
+  var prog=document.getElementById('ugDownloadProgress');
+  var result=document.getElementById('ugActionResult');
+  btn.disabled=true;btn.textContent='\u23F3 Downloading...';
+  prog.style.display='block';result.style.display='none';
+  document.getElementById('ugProgressBar').style.width='30%';
+  try{
+    const r=await fetch('/api/upgrades/download',{method:'POST'});
+    document.getElementById('ugProgressBar').style.width='100%';
+    const d=await r.json();
+    if(d.ok){
+      showToast('Binary downloaded: '+(d.size/1048576).toFixed(1)+' MB','success');
+      result.style.display='block';result.style.background='var(--green-bg)';result.style.color='var(--green)';
+      result.textContent='\u2705 Downloaded successfully. SHA256: '+d.sha256;
+      loadUpgrades();
+    } else {
+      showToast(d.error||'Download failed','error');
+      result.style.display='block';result.style.background='var(--red-bg)';result.style.color='var(--red)';
+      result.textContent='\u274C '+(d.error||'Download failed');
+    }
+  }catch(e){
+    showToast('Download error','error');
+    result.style.display='block';result.style.background='var(--red-bg)';result.style.color='var(--red)';
+    result.textContent='\u274C Network error';
+  }finally{
+    btn.disabled=false;btn.textContent='\u2B07 Download Latest Binary';
+    setTimeout(function(){prog.style.display='none';},2000);
+  }
+}
+async function doUpgradeApply(){
+  if(!confirm('This will stop the node, swap the binary, and restart. Continue?'))return;
+  var btn=document.getElementById('ugApplyBtn');
+  var result=document.getElementById('ugActionResult');
+  btn.disabled=true;btn.textContent='\u23F3 Applying...';
+  result.style.display='none';
+  try{
+    const r=await fetch('/api/upgrades/apply',{method:'POST'});
+    const d=await r.json();
+    if(d.ok){
+      showToast('Upgrade applied! Node '+(d.node_started?'started':'needs manual start'),'success');
+      result.style.display='block';result.style.background='var(--green-bg)';result.style.color='var(--green)';
+      result.textContent='\u2705 Upgrade applied. Node '+(d.node_started?'restarted successfully':'needs manual start');
+      loadUpgrades();
+    } else {
+      showToast(d.error||'Apply failed','error');
+      result.style.display='block';result.style.background='var(--red-bg)';result.style.color='var(--red)';
+      result.textContent='\u274C '+(d.error||'Apply failed');
+    }
+  }catch(e){
+    showToast('Apply error','error');
+  }finally{
+    btn.disabled=false;btn.textContent='\u26A1 Apply Upgrade & Restart';
+  }
+}
+async function doUpgradeRollback(){
+  if(!confirm('This will stop the node, restore the previous binary, and restart. Continue?'))return;
+  var btn=document.getElementById('ugRollbackBtn');
+  var result=document.getElementById('ugActionResult');
+  btn.disabled=true;btn.textContent='\u23F3 Rolling back...';
+  result.style.display='none';
+  try{
+    const r=await fetch('/api/upgrades/rollback',{method:'POST'});
+    const d=await r.json();
+    if(d.ok){
+      showToast('Rolled back successfully','success');
+      result.style.display='block';result.style.background='var(--green-bg)';result.style.color='var(--green)';
+      result.textContent='\u2705 Rolled back. Node '+(d.node_started?'restarted':'needs manual start');
+      loadUpgrades();
+    } else {
+      showToast(d.error||'Rollback failed','error');
+      result.style.display='block';result.style.background='var(--red-bg)';result.style.color='var(--red)';
+      result.textContent='\u274C '+(d.error||'Rollback failed');
+    }  
+  }catch(e){
+    showToast('Rollback error','error');
+  }finally{
+    btn.disabled=false;btn.textContent='\u21A9 Rollback to Previous';
+  }
 }
 
 // ── Pinned Tabs ──

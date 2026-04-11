@@ -2663,6 +2663,276 @@ async def save_pinned_tabs(req: Request):
     return {"ok": True}
 
 
+# ── API: Chain Upgrades ──────────────────────────────────────────────────────
+def _get_binary_release_url():
+    return os.environ.get("BINARY_RELEASE_URL", "").rstrip("/")
+
+_upgrade_download_lock = asyncio.Lock()
+
+@app.get("/api/upgrades")
+async def get_upgrades():
+    """Return current upgrade plan, binary status, and upgrade history."""
+    release_url = _get_binary_release_url()
+    bin_dir = HYVE_NODE_DIR / "bin"
+    hyved = bin_dir / "hyved"
+    hyved_upgrade = bin_dir / "hyved.upgrade"
+
+    # Current upgrade plan from chain
+    plan_data = await rest_call("/cosmos/upgrade/v1beta1/current_plan")
+    current_plan = plan_data.get("plan") if plan_data else None
+
+    # Current chain height
+    height = 0
+    status = await rpc_call("status")
+    if status:
+        height = int(status.get("result", {}).get("sync_info", {}).get("latest_block_height", "0"))
+
+    # Local binary info
+    local_sha256 = ""
+    local_size = 0
+    if hyved.exists():
+        local_size = hyved.stat().st_size
+        h = hashlib.sha256()
+        with open(hyved, "rb") as f:
+            for chunk in iter(lambda: f.read(1 << 20), b""):
+                h.update(chunk)
+        local_sha256 = h.hexdigest()
+
+    # Upgrade binary info
+    upgrade_sha256 = ""
+    upgrade_size = 0
+    upgrade_exists = hyved_upgrade.exists()
+    if upgrade_exists:
+        upgrade_size = hyved_upgrade.stat().st_size
+        h = hashlib.sha256()
+        with open(hyved_upgrade, "rb") as f:
+            for chunk in iter(lambda: f.read(1 << 20), b""):
+                h.update(chunk)
+        upgrade_sha256 = h.hexdigest()
+
+    # Remote binary metadata (HEAD request, no download)
+    remote_size = 0
+    remote_last_modified = ""
+    remote_sha256 = ""
+    if release_url:
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                r = await client.head(f"{release_url}/hyved")
+                if r.status_code == 200:
+                    remote_size = int(r.headers.get("content-length", "0"))
+                    remote_last_modified = r.headers.get("last-modified", "")
+        except Exception:
+            pass
+
+        # Remote SHA256 (if available on server)
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                r = await client.get(f"{release_url}/hyved.sha256")
+                if r.status_code == 200 and len(r.text.strip()) >= 64:
+                    remote_sha256 = r.text.strip().split()[0][:64]
+        except Exception:
+            pass
+
+    # Determine if a new binary is available
+    new_binary_available = False
+    if remote_size > 0 and local_size > 0:
+        if upgrade_exists and upgrade_size == remote_size:
+            new_binary_available = False  # already downloaded
+        elif remote_size != local_size:
+            new_binary_available = True
+        elif remote_sha256 and remote_sha256 != local_sha256:
+            new_binary_available = True
+
+    # Past upgrade proposals from governance
+    upgrade_history = []
+    proposals = await rest_call("/cosmos/gov/v1/proposals?proposal_status=PROPOSAL_STATUS_PASSED&pagination.limit=50")
+    if proposals:
+        for p in proposals.get("proposals", []):
+            for msg in p.get("messages", []):
+                if "MsgSoftwareUpgrade" in msg.get("@type", ""):
+                    plan = msg.get("plan", {})
+                    upgrade_history.append({
+                        "proposal_id": p.get("id"),
+                        "name": plan.get("name", ""),
+                        "height": int(plan.get("height", "0")),
+                        "info": (plan.get("info", "") or "")[:500],
+                        "status": p.get("status", ""),
+                        "submit_time": p.get("submit_time", ""),
+                        "applied": int(plan.get("height", "0")) <= height,
+                    })
+    upgrade_history.sort(key=lambda u: u["height"], reverse=True)
+
+    return {
+        "current_plan": current_plan,
+        "current_height": height,
+        "local_binary": {
+            "sha256": local_sha256,
+            "size": local_size,
+        },
+        "upgrade_binary": {
+            "exists": upgrade_exists,
+            "sha256": upgrade_sha256,
+            "size": upgrade_size,
+        },
+        "remote_binary": {
+            "size": remote_size,
+            "last_modified": remote_last_modified,
+            "sha256": remote_sha256,
+        },
+        "new_binary_available": new_binary_available,
+        "release_url_configured": bool(release_url),
+        "upgrade_history": upgrade_history,
+    }
+
+
+@app.post("/api/upgrades/download")
+async def download_upgrade_binary():
+    """Download the latest hyved binary from the release server."""
+    release_url = _get_binary_release_url()
+    if not release_url:
+        return JSONResponse({"error": "BINARY_RELEASE_URL not configured. Set it in your .env file."}, status_code=400)
+    if _upgrade_download_lock.locked():
+        return JSONResponse({"error": "Download already in progress"}, status_code=409)
+
+    async with _upgrade_download_lock:
+        bin_dir = HYVE_NODE_DIR / "bin"
+        bin_dir.mkdir(parents=True, exist_ok=True)
+        dest = bin_dir / "hyved.upgrade"
+        tmp = bin_dir / "hyved.upgrade.tmp"
+
+        try:
+            h = hashlib.sha256()
+            total = 0
+            async with httpx.AsyncClient(timeout=600.0, follow_redirects=True) as client:
+                async with client.stream("GET", f"{release_url}/hyved") as resp:
+                    resp.raise_for_status()
+                    expected = int(resp.headers.get("content-length", "0"))
+                    with open(tmp, "wb") as f:
+                        async for chunk in resp.aiter_bytes(chunk_size=1 << 20):
+                            f.write(chunk)
+                            h.update(chunk)
+                            total += len(chunk)
+
+            if expected and total != expected:
+                tmp.unlink(missing_ok=True)
+                return JSONResponse({"error": f"Incomplete download: {total}/{expected}"}, status_code=500)
+
+            sha256 = h.hexdigest()
+            tmp.rename(dest)
+            os.chmod(dest, 0o755)
+
+            # Also download additional shared libs if configured
+            extra_libs = os.environ.get("BINARY_EXTRA_LIBS", "").strip()
+            if extra_libs:
+                for lib_name in extra_libs.split(","):
+                    lib_name = lib_name.strip()
+                    if not lib_name:
+                        continue
+                    lib = bin_dir / lib_name
+                    if not lib.exists():
+                        try:
+                            async with httpx.AsyncClient(timeout=120.0, follow_redirects=True) as client:
+                                r = await client.get(f"{release_url}/{lib_name}")
+                                if r.status_code == 200:
+                                    lib.write_bytes(r.content)
+                        except Exception:
+                            pass
+
+            return {"ok": True, "sha256": sha256, "size": total}
+        except httpx.HTTPStatusError as e:
+            tmp.unlink(missing_ok=True)
+            return JSONResponse({"error": f"Download failed: HTTP {e.response.status_code}"}, status_code=502)
+        except Exception as e:
+            tmp.unlink(missing_ok=True)
+            return JSONResponse({"error": f"Download failed: {e}"}, status_code=500)
+
+
+@app.post("/api/upgrades/apply")
+async def apply_upgrade_binary():
+    """Swap hyved.upgrade into hyved, backing up the current binary, and restart the node."""
+    bin_dir = HYVE_NODE_DIR / "bin"
+    hyved = bin_dir / "hyved"
+    hyved_upgrade = bin_dir / "hyved.upgrade"
+    hyved_backup = bin_dir / "hyved.previous"
+
+    if not hyved_upgrade.exists():
+        return JSONResponse({"error": "No upgrade binary found. Download first."}, status_code=400)
+
+    # Stop the node first if running
+    proc = find_hyved_process()
+    if proc:
+        try:
+            proc.send_signal(signal.SIGTERM)
+            proc.wait(timeout=15)
+        except Exception:
+            try:
+                proc.kill()
+            except Exception:
+                pass
+        await asyncio.sleep(2)
+
+    try:
+        # Backup current binary
+        if hyved.exists():
+            if hyved_backup.exists():
+                hyved_backup.unlink()
+            hyved.rename(hyved_backup)
+
+        # Move upgrade binary into place
+        hyved_upgrade.rename(hyved)
+        os.chmod(hyved, 0o755)
+
+        # Start the node with the new binary
+        result = await start_node()
+        return {"ok": True, "node_started": result.get("ok", False)}
+    except Exception as e:
+        # Attempt rollback
+        if hyved_backup.exists() and not hyved.exists():
+            hyved_backup.rename(hyved)
+        return JSONResponse({"error": f"Apply failed: {e}"}, status_code=500)
+
+
+@app.post("/api/upgrades/rollback")
+async def rollback_binary():
+    """Rollback to the previous hyved binary."""
+    bin_dir = HYVE_NODE_DIR / "bin"
+    hyved = bin_dir / "hyved"
+    hyved_backup = bin_dir / "hyved.previous"
+
+    if not hyved_backup.exists():
+        return JSONResponse({"error": "No backup binary available"}, status_code=400)
+
+    proc = find_hyved_process()
+    if proc:
+        try:
+            proc.send_signal(signal.SIGTERM)
+            proc.wait(timeout=15)
+        except Exception:
+            try:
+                proc.kill()
+            except Exception:
+                pass
+        await asyncio.sleep(2)
+
+    try:
+        current_sha = ""
+        if hyved.exists():
+            h = hashlib.sha256()
+            with open(hyved, "rb") as f:
+                for chunk in iter(lambda: f.read(1 << 20), b""):
+                    h.update(chunk)
+            current_sha = h.hexdigest()
+            hyved.unlink()
+
+        hyved_backup.rename(hyved)
+        os.chmod(hyved, 0o755)
+
+        result = await start_node()
+        return {"ok": True, "rolled_back_sha256": current_sha, "node_started": result.get("ok", False)}
+    except Exception as e:
+        return JSONResponse({"error": f"Rollback failed: {e}"}, status_code=500)
+
+
 # ── WebSocket ────────────────────────────────────────────────────────────────
 @app.websocket("/ws/live")
 async def live_updates(ws: WebSocket):
