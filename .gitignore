@@ -31,3 +31,16 @@ Thumbs.db
 # Runtime data
 data/
 history.json*
+
+# Mobile app build artifacts
+hyve-mobile/node_modules/
+hyve-mobile/android/.gradle/
+hyve-mobile/android/app/build/
+hyve-mobile/android/app/.cxx/
+hyve-mobile/android/build/
+hyve-mobile/android/app/*.keystore
+hyve-mobile/android/local.properties
+hyve-mobile/ios/Pods/
+hyve-mobile/ios/build/
+hyve-mobile/*.apk
+hyve-mobile/.bundle/

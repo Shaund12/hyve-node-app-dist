@@ -602,6 +602,10 @@ async def main_middleware(request: Request, call_next):
     start = time.monotonic()
     if path not in PUBLIC_PATHS:
         token = request.cookies.get("session")
+        if not token:
+            auth_h = request.headers.get("authorization", "")
+            if auth_h.startswith("Bearer "):
+                token = auth_h[7:]
         authed = False
         if token and token in _sessions:
             if _sessions[token]["expires"] > time.time():
@@ -635,13 +639,17 @@ async def login(req: LoginRequest, request: Request):
         return JSONResponse({"error": "Invalid credentials"}, status_code=401)
     _record_login_attempt(ip, True)
     token = _create_session(req.username)
-    resp = JSONResponse({"ok": True, "username": req.username})
+    resp = JSONResponse({"ok": True, "username": req.username, "token": token})
     resp.set_cookie("session", token, max_age=86400 * 7, httponly=True, samesite="lax")
     return resp
 
 @app.get("/api/auth/check")
 async def auth_check(request: Request):
     token = request.cookies.get("session")
+    if not token:
+        auth_h = request.headers.get("authorization", "")
+        if auth_h.startswith("Bearer "):
+            token = auth_h[7:]
     if token and token in _sessions and _sessions[token]["expires"] > time.time():
         return {"authenticated": True, "username": _sessions[token]["user"]}
     return JSONResponse({"authenticated": False}, status_code=401)
@@ -649,6 +657,10 @@ async def auth_check(request: Request):
 @app.post("/api/auth/logout")
 async def logout(request: Request):
     token = request.cookies.get("session")
+    if not token:
+        auth_h = request.headers.get("authorization", "")
+        if auth_h.startswith("Bearer "):
+            token = auth_h[7:]
     if token and token in _sessions:
         del _sessions[token]
     resp = JSONResponse({"ok": True})
@@ -2231,9 +2243,17 @@ async def get_disk_forecast():
             """)
             history = [{"date": r["day"].isoformat()[:10], "pct": round(r["avg_pct"], 2)} for r in rows]
             if len(history) >= 2:
-                first, last = history[0], history[-1]
-                days_elapsed = max((datetime.fromisoformat(last["date"]) - datetime.fromisoformat(first["date"])).days, 1)
-                growth_per_day = (last["pct"] - first["pct"]) / days_elapsed
+                # Linear regression across all data points for robust forecast
+                x_vals = [(datetime.fromisoformat(h["date"]) - datetime.fromisoformat(history[0]["date"])).days for h in history]
+                y_vals = [h["pct"] for h in history]
+                n = len(x_vals)
+                sum_x = sum(x_vals)
+                sum_y = sum(y_vals)
+                sum_xy = sum(x * y for x, y in zip(x_vals, y_vals))
+                sum_x2 = sum(x * x for x in x_vals)
+                denom = n * sum_x2 - sum_x * sum_x
+                if denom != 0:
+                    growth_per_day = (n * sum_xy - sum_x * sum_y) / denom
                 if growth_per_day > 0:
                     remaining_pct = 100 - disk.get("pct", 0)
                     forecast_days = round(remaining_pct / growth_per_day)
@@ -2936,7 +2956,7 @@ async def rollback_binary():
 # ── WebSocket ────────────────────────────────────────────────────────────────
 @app.websocket("/ws/live")
 async def live_updates(ws: WebSocket):
-    token = ws.cookies.get("session")
+    token = ws.cookies.get("session") or ws.query_params.get("token")
     if not token or token not in _sessions or _sessions[token]["expires"] < time.time():
         await ws.close(code=1008)
         return
@@ -2984,7 +3004,7 @@ async def live_updates(ws: WebSocket):
 
 @app.websocket("/ws/logs")
 async def live_logs(ws: WebSocket):
-    token = ws.cookies.get("session")
+    token = ws.cookies.get("session") or ws.query_params.get("token")
     if not token or token not in _sessions or _sessions[token]["expires"] < time.time():
         await ws.close(code=1008)
         return

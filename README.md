@@ -691,6 +691,17 @@ pkill -f "uvicorn.*8420"
 
 ---
 
+## Mobile App
+
+A React Native companion app is included in `hyve-mobile/`. It connects remotely to your dashboard server and provides full feature parity — staking, governance, analytics, node control, logs, and more — all from your phone.
+
+- **Android** — Build the APK on any platform with Java 17 + Android SDK
+- **iOS** — Requires a Mac with Xcode 15+
+
+See [`hyve-mobile/README.md`](hyve-mobile/README.md) for complete build and setup instructions.
+
+---
+
 ## License
 
 MIT
