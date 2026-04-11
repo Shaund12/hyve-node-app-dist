@@ -1,0 +1,68 @@
+# ============================================================================
+# Hyve Dashboard — systemd service file
+# ============================================================================
+#
+# BEFORE INSTALLING: Replace every occurrence of YOUR_USERNAME with your
+# actual Linux username (the output of `whoami`).
+#
+# Quick replace:
+#   sed -i "s/YOUR_USERNAME/$(whoami)/g" hyve-dashboard.service
+#
+# ALSO: If you cloned the dashboard to a path OTHER than ~/hyve-node-app/,
+# you must update WorkingDirectory and --app-dir to match your actual path.
+# Example:
+#   sed -i "s|/home/$(whoami)/hyve-node-app|/path/to/your/dashboard|g" hyve-dashboard.service
+#
+# Install:
+#   sudo cp hyve-dashboard.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable hyve-dashboard
+#   sudo systemctl start hyve-dashboard
+#
+# ============================================================================
+
+[Unit]
+Description=Hyve Validator Dashboard
+Documentation=https://hyve.network
+After=network-online.target hyve-node.service
+Wants=network-online.target
+Requires=hyve-node.service
+
+[Service]
+Type=simple
+
+# ── CHANGE THESE ─────────────────────────────────────────────────────────────
+# Replace YOUR_USERNAME with your Linux username (run: whoami)
+User=YOUR_USERNAME
+Group=YOUR_USERNAME
+
+# Full path to the dashboard directory (where server.py and .env live)
+# If you cloned to a different location, change this path
+WorkingDirectory=/home/YOUR_USERNAME/hyve-node-app
+
+# Full command to start the dashboard
+# - Uses the Python from the virtual environment (venv/bin/python3)
+# - --host 127.0.0.1 means localhost only (change to 0.0.0.0 for LAN access,
+#   or better yet, set HYVE_DASH_HOST in .env instead)
+# - --port 8420 is the default (change in .env with HYVE_DASH_PORT if needed)
+# - --app-dir must point to the same directory as WorkingDirectory
+ExecStart=/home/YOUR_USERNAME/hyve-node-app/venv/bin/python3 \
+    -m uvicorn server:app \
+    --host 127.0.0.1 \
+    --port 8420 \
+    --log-level warning \
+    --app-dir /home/YOUR_USERNAME/hyve-node-app
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Process management
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65535
+
+# Safety
+ProtectSystem=full
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

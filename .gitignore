@@ -1,0 +1,33 @@
+# Secrets
+.env
+.env.*
+!.env.example
+.auth.json
+.secret_key
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+venv/
+.venv/
+env/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Runtime data
+data/
+history.json*

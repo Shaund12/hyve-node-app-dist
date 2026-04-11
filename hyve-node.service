@@ -1,0 +1,69 @@
+# ============================================================================
+# Hyve Node — systemd service file
+# ============================================================================
+#
+# BEFORE INSTALLING: Replace every occurrence of YOUR_USERNAME with your
+# actual Linux username (the output of `whoami`).
+#
+# Quick replace:
+#   sed -i "s/YOUR_USERNAME/$(whoami)/g" hyve-node.service
+#
+# Then verify paths are correct:
+#   grep -E "User=|WorkingDirectory=|ExecStart=|Environment=" hyve-node.service
+#
+# Install:
+#   sudo cp hyve-node.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable hyve-node
+#   sudo systemctl start hyve-node
+#
+# ============================================================================
+
+[Unit]
+Description=Hyve Validator Node (hyved)
+Documentation=https://hyve.network
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+
+# ── CHANGE THESE ─────────────────────────────────────────────────────────────
+# Replace YOUR_USERNAME with your Linux username (run: whoami)
+User=YOUR_USERNAME
+Group=YOUR_USERNAME
+
+# Working directory — this is the hyved "home" directory containing config/ and data/
+# Default: /home/YOUR_USERNAME/.config/hyve-node/home
+WorkingDirectory=/home/YOUR_USERNAME/.config/hyve-node/home
+
+# The hyved binary needs its shared libraries — this path must point to the bin/ folder
+# Default: /home/YOUR_USERNAME/.config/hyve-node/bin
+Environment=LD_LIBRARY_PATH=/home/YOUR_USERNAME/.config/hyve-node/bin
+
+# Full path to the hyved binary and its startup arguments
+# --home must point to the directory containing config.toml and data/
+# --chain-id must be hyve_7847-1 (do not change this)
+ExecStart=/home/YOUR_USERNAME/.config/hyve-node/bin/hyved start \
+    --home /home/YOUR_USERNAME/.config/hyve-node/home \
+    --chain-id hyve_7847-1
+
+# ── LOG OUTPUT ───────────────────────────────────────────────────────────────
+# Logs are written to a file so the dashboard can tail them in the UI.
+# Make sure the logs/ directory exists: mkdir -p ~/.config/hyve-node/logs
+StandardOutput=append:/home/YOUR_USERNAME/.config/hyve-node/logs/app.log
+StandardError=append:/home/YOUR_USERNAME/.config/hyve-node/logs/app.log
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Process management
+Restart=on-failure
+RestartSec=10
+LimitNOFILE=65535
+
+# Safety
+ProtectSystem=full
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
