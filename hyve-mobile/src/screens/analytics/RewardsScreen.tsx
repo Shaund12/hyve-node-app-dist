@@ -20,7 +20,7 @@ export function RewardsScreen() {
   const commTotal = commission?.total || 0;
 
   return (
-    <ScreenContainer>
+    <ScreenContainer onRefresh={reload}>
       <Card title="Commission Income" icon="💎">
         <View style={styles.row}>
           <MetricCard label="Total" value={fmtHyve(commTotal)} color={colors.purple} sub="HYVE" />

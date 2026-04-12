@@ -11,11 +11,11 @@ import {fmt, fmtHyve} from '../../utils/format';
 
 export function TaxReportScreen() {
   const [days, setDays] = useState(365);
-  const {data, loading} = useApi<any>(`/api/tax-report?days=${days}`);
+  const {data, loading, reload} = useApi<any>(`/api/tax-report?days=${days}`);
   const report = data;
 
   return (
-    <ScreenContainer>
+    <ScreenContainer onRefresh={reload}>
       <Card title={`Tax Report — Last ${days} days`} icon="📄">
         <View style={styles.yearRow}>
           <Button

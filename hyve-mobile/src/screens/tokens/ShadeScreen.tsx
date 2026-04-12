@@ -45,7 +45,7 @@ export function ShadeScreen() {
   };
 
   return (
-    <ScreenContainer>
+    <ScreenContainer onRefresh={reload}>
       <Card title="SHADE Token" icon="🌑">
         <View style={styles.row}>
           <MetricCard label="Balance" value={fmtHyve(data.balance || 0)} color={colors.purple} sub="SHADE" />

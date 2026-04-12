@@ -11,6 +11,7 @@ interface Props {
 }
 
 export function MetricCard({label, value, color, mono, sub}: Props) {
+  const display = value != null && typeof value === 'object' ? JSON.stringify(value) : String(value ?? '—');
   return (
     <View style={styles.container}>
       <Text style={styles.label}>{label}</Text>
@@ -21,7 +22,7 @@ export function MetricCard({label, value, color, mono, sub}: Props) {
           mono ? {fontFamily: fonts.mono} : {},
         ]}
         numberOfLines={1}>
-        {value}
+        {display}
       </Text>
       {sub ? <Text style={styles.sub}>{sub}</Text> : null}
     </View>

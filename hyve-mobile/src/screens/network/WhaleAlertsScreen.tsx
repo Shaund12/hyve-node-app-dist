@@ -9,11 +9,11 @@ import {useApi} from '../../hooks/useApi';
 import {fmtHyve, timeAgo, shortenAddr} from '../../utils/format';
 
 export function WhaleAlertsScreen() {
-  const {data} = useApi<any>('/api/whale-alerts', 30000);
+  const {data, reload} = useApi<any>('/api/whale-alerts', 30000);
   const alerts = data?.events || [];
 
   return (
-    <ScreenContainer>
+    <ScreenContainer onRefresh={reload}>
       <Card title="Recent Whale Events" icon="📡">
         {alerts.length === 0 ? (
           <Text style={styles.empty}>No whale transactions detected</Text>

@@ -8,7 +8,7 @@ import {useApi} from '../../hooks/useApi';
 import {timeAgo, fmtHyve} from '../../utils/format';
 
 export function TimelineScreen() {
-  const {data} = useApi<any>('/api/timeline');
+  const {data, reload} = useApi<any>('/api/timeline');
   const events = data?.events || [];
 
   const iconFor = (type: string) => {
@@ -36,7 +36,7 @@ export function TimelineScreen() {
   };
 
   return (
-    <ScreenContainer>
+    <ScreenContainer onRefresh={reload}>
       <Card title="Activity Timeline" icon="📅">
         {events.length === 0 ? (
           <Text style={styles.empty}>No activity recorded yet</Text>

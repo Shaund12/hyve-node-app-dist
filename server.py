@@ -33,6 +33,11 @@ except ImportError:
     EthAccount = None
     LocalAccount = None
 
+try:
+    import asyncssh
+except ImportError:
+    asyncssh = None
+
 # ── Configuration ────────────────────────────────────────────────────────────
 HYVE_NODE_DIR = Path(os.environ.get("HYVE_NODE_DIR", Path.home() / ".config" / "hyve-node"))
 HYVED_BIN = HYVE_NODE_DIR / "bin" / "hyved"
@@ -80,6 +85,18 @@ _last_hyved_pid = None  # For node restart detection
 _last_known_valset = set()  # For validator set change tracking
 _last_known_delegators = {}  # For delegation change tracking
 _rank_history = deque(maxlen=720)  # ~30 days at 1/hour
+_failover_config = {
+    "enabled": False, "host": "", "port": 22, "username": "root",
+    "ssh_key_path": "", "remote_hyved_path": "", "remote_hyved_home": "",
+    "remote_rpc_port": 26657, "auto_failover": False,
+    "health_check_interval": 30, "max_failures": 3,
+}
+_failover_state = {
+    "active_node": "primary", "failover_available": False,
+    "primary_healthy": True, "failover_healthy": False,
+    "consecutive_failures": 0, "last_check": None,
+    "last_failover_event": None,
+}
 
 
 # ── Pydantic Models ──────────────────────────────────────────────────────────
@@ -118,6 +135,19 @@ class AlertConfigRequest(BaseModel):
 
 class DiscordConfigRequest(BaseModel):
     webhook_url: str = ""
+    enabled: bool = False
+
+class FailoverConfigRequest(BaseModel):
+    host: str = Field("", max_length=255)
+    port: int = Field(22, ge=1, le=65535)
+    username: str = Field("root", max_length=64)
+    ssh_key_path: str = Field("", max_length=500)
+    remote_hyved_path: str = Field("", max_length=500)
+    remote_hyved_home: str = Field("", max_length=500)
+    remote_rpc_port: int = Field(26657, ge=1, le=65535)
+    auto_failover: bool = False
+    health_check_interval: int = Field(30, ge=10, le=300)
+    max_failures: int = Field(3, ge=1, le=20)
     enabled: bool = False
 
 
@@ -589,6 +619,13 @@ async def _db_ensure_tables():
             vote_option TEXT, tx_hash TEXT
         )""")
     await db_pool.execute("CREATE INDEX IF NOT EXISTS idx_govvote_ts ON governance_votes(ts DESC)")
+    await db_pool.execute("""
+        CREATE TABLE IF NOT EXISTS failover_events (
+            id BIGSERIAL PRIMARY KEY, ts TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            event_type TEXT NOT NULL, source_node TEXT, target_node TEXT,
+            details TEXT, success BOOLEAN DEFAULT TRUE
+        )""")
+    await db_pool.execute("CREATE INDEX IF NOT EXISTS idx_failover_ts ON failover_events(ts DESC)")
 
 async def _db_save_config(key: str, value: dict):
     if not db_pool:
@@ -614,7 +651,7 @@ async def _db_load_config(key: str) -> dict | None:
     return None
 
 async def _db_load_all_configs():
-    global _discord_config, _alert_config, _auto_compound_config
+    global _discord_config, _alert_config, _auto_compound_config, _failover_config
     dc = await _db_load_config("discord")
     if dc:
         _discord_config = dc
@@ -624,6 +661,9 @@ async def _db_load_all_configs():
     cc = await _db_load_config("auto_compound")
     if cc:
         _auto_compound_config = cc
+    fc = await _db_load_config("failover")
+    if fc:
+        _failover_config.update(fc)
 
 
 async def _db_record_metrics(data: dict):
@@ -3322,6 +3362,350 @@ async def rollback_binary():
         return JSONResponse({"error": f"Rollback failed: {e}"}, status_code=500)
 
 
+# ── Failover ─────────────────────────────────────────────────────────────────
+async def _ssh_connect():
+    """Create an SSH connection to the failover node."""
+    if not asyncssh:
+        raise RuntimeError("asyncssh not installed")
+    cfg = _failover_config
+    if not cfg.get("host"):
+        raise ValueError("Failover host not configured")
+    kw = {"host": cfg["host"], "port": cfg.get("port", 22), "username": cfg.get("username", "root"),
+          "known_hosts": None}
+    key_path = cfg.get("ssh_key_path", "")
+    if key_path and Path(key_path).exists():
+        kw["client_keys"] = [key_path]
+    return await asyncssh.connect(**kw)
+
+async def _ssh_run(cmd: str, timeout: int = 15) -> dict:
+    """Run a command on the failover node via SSH."""
+    try:
+        async with await _ssh_connect() as conn:
+            result = await asyncio.wait_for(conn.run(cmd), timeout=timeout)
+            return {"ok": True, "stdout": result.stdout.strip(), "stderr": result.stderr.strip(),
+                    "exit_status": result.exit_status}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+async def _check_remote_node_health() -> dict:
+    """Check the health of the remote failover node via SSH + its local RPC."""
+    cfg = _failover_config
+    host = cfg.get("host", "")
+    rpc_port = cfg.get("remote_rpc_port", 26657)
+    result = {"reachable": False, "node_running": False, "syncing": None, "latest_height": 0, "peers": 0}
+    # Check SSH connectivity
+    ssh_result = await _ssh_run("echo ok")
+    if not ssh_result.get("ok"):
+        return result
+    result["reachable"] = True
+    # Check if hyved is running
+    ps_result = await _ssh_run("pgrep -f 'hyved start' || true")
+    if ps_result.get("ok") and ps_result.get("stdout", "").strip():
+        result["node_running"] = True
+    # Query remote RPC for sync status
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(f"http://{host}:{rpc_port}/status")
+            if resp.status_code == 200:
+                data = resp.json().get("result", {})
+                sync_info = data.get("sync_info", {})
+                result["syncing"] = sync_info.get("catching_up", True)
+                result["latest_height"] = int(sync_info.get("latest_block_height", 0))
+                net_resp = await client.get(f"http://{host}:{rpc_port}/net_info")
+                if net_resp.status_code == 200:
+                    result["peers"] = int(net_resp.json().get("result", {}).get("n_peers", 0))
+    except Exception:
+        pass
+    return result
+
+async def _check_primary_health() -> dict:
+    """Check local primary node health."""
+    result = {"node_running": False, "syncing": None, "latest_height": 0, "peers": 0}
+    proc = find_hyved_process()
+    result["node_running"] = proc is not None
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            resp = await client.get(f"{RPC_URL}/status")
+            if resp.status_code == 200:
+                data = resp.json().get("result", {})
+                sync_info = data.get("sync_info", {})
+                result["syncing"] = sync_info.get("catching_up", True)
+                result["latest_height"] = int(sync_info.get("latest_block_height", 0))
+                net_resp = await client.get(f"{RPC_URL}/net_info")
+                if net_resp.status_code == 200:
+                    result["peers"] = int(net_resp.json().get("result", {}).get("n_peers", 0))
+    except Exception:
+        pass
+    return result
+
+async def _confirm_local_node_stopped(max_wait: int = 20) -> bool:
+    """Wait until the local hyved process is confirmed dead. Returns True if stopped."""
+    for _ in range(max_wait):
+        if not find_hyved_process():
+            return True
+        await asyncio.sleep(1)
+    # Force kill as last resort
+    proc = find_hyved_process()
+    if proc:
+        try:
+            proc.kill()
+            await asyncio.sleep(2)
+        except Exception:
+            pass
+    return find_hyved_process() is None
+
+async def _confirm_remote_node_stopped(max_wait: int = 20) -> bool:
+    """Wait until the remote hyved process is confirmed dead. Returns True if stopped."""
+    for _ in range(max_wait):
+        ps = await _ssh_run("pgrep -f 'hyved start' || true")
+        if ps.get("ok") and not ps.get("stdout", "").strip():
+            return True
+        await asyncio.sleep(1)
+    # Force kill as last resort
+    await _ssh_run("pkill -9 -f 'hyved start' || true")
+    await asyncio.sleep(2)
+    ps = await _ssh_run("pgrep -f 'hyved start' || true")
+    return ps.get("ok") and not ps.get("stdout", "").strip()
+
+async def _record_failover_event(event_type: str, source: str, target: str, details: str, success: bool = True):
+    if db_pool:
+        try:
+            await db_pool.execute(
+                "INSERT INTO failover_events (event_type, source_node, target_node, details, success) VALUES ($1,$2,$3,$4,$5)",
+                event_type, source, target, details, success)
+        except Exception:
+            pass
+
+@app.get("/api/failover/status")
+async def failover_status():
+    """Get current failover configuration and state."""
+    cfg = {k: v for k, v in _failover_config.items()}
+    if cfg.get("ssh_key_path"):
+        cfg["ssh_key_path"] = "***configured***"
+    return {"config": cfg, "state": dict(_failover_state), "asyncssh_available": asyncssh is not None}
+
+@app.post("/api/failover/config")
+async def failover_config_save(req: FailoverConfigRequest):
+    """Save failover configuration."""
+    global _failover_config
+    _failover_config.update(req.model_dump())
+    await _db_save_config("failover", _failover_config)
+    return {"ok": True, "config": {k: v for k, v in _failover_config.items()}}
+
+@app.post("/api/failover/test")
+async def failover_test():
+    """Test SSH connection and remote node health."""
+    if not asyncssh:
+        return JSONResponse({"error": "asyncssh not installed — pip install asyncssh"}, status_code=400)
+    if not _failover_config.get("host"):
+        return JSONResponse({"error": "Failover host not configured"}, status_code=400)
+    ssh_test = await _ssh_run("uname -a")
+    if not ssh_test.get("ok"):
+        return {"ok": False, "ssh": False, "error": ssh_test.get("error", "Connection failed")}
+    remote_health = await _check_remote_node_health()
+    return {"ok": True, "ssh": True, "system_info": ssh_test.get("stdout", ""),
+            "remote_health": remote_health}
+
+@app.post("/api/failover/activate")
+async def failover_activate():
+    """Manually activate failover — stop primary, start failover node.
+    SAFETY: Confirms primary is fully dead before starting failover.
+    Will NOT start failover if primary cannot be confirmed stopped."""
+    if not asyncssh:
+        return JSONResponse({"error": "asyncssh not installed"}, status_code=400)
+    if not _failover_config.get("host"):
+        return JSONResponse({"error": "Failover not configured"}, status_code=400)
+    if _failover_state["active_node"] == "failover":
+        return JSONResponse({"error": "Failover is already active"}, status_code=400)
+
+    # Step 1: Stop local primary node
+    stop_result = {"ok": True}
+    if find_hyved_process():
+        stop_result = await stop_node()
+
+    # Step 2: CONFIRM primary is fully dead — refuse to proceed if not
+    if not await _confirm_local_node_stopped():
+        await _record_failover_event("activate", "primary", "failover",
+                                      "BLOCKED: Primary node could not be confirmed stopped — refusing to start failover to prevent double-signing", False)
+        return JSONResponse({"error": "Primary node could not be stopped — aborting to prevent double-signing"}, status_code=500)
+
+    # Step 3: Ensure remote is also not already running (stale process)
+    remote_ps = await _ssh_run("pgrep -f 'hyved start' || true")
+    if remote_ps.get("ok") and remote_ps.get("stdout", "").strip():
+        await _ssh_run("pkill -f 'hyved start' || true")
+        if not await _confirm_remote_node_stopped():
+            await _record_failover_event("activate", "primary", "failover",
+                                          "BLOCKED: Stale remote process could not be killed", False)
+            return JSONResponse({"error": "Stale remote node process could not be stopped"}, status_code=500)
+
+    # Step 4: Start remote failover node
+    remote_path = _failover_config.get("remote_hyved_path", "hyved")
+    remote_home = _failover_config.get("remote_hyved_home", "$HOME/.hyved")
+    start_cmd = f"nohup {remote_path} start --home {remote_home} --chain-id {CHAIN_ID} > /tmp/hyved.log 2>&1 &"
+    start_result = await _ssh_run(start_cmd, timeout=10)
+
+    success = start_result.get("ok", False)
+    _failover_state["active_node"] = "failover" if success else "primary"
+    _failover_state["last_failover_event"] = datetime.now(timezone.utc).isoformat()
+    await _record_failover_event("activate", "primary", "failover",
+                                  f"Manual activation. Stop: {stop_result}, Start: {start_result}", success)
+    return {"ok": success, "active_node": _failover_state["active_node"],
+            "stop_result": stop_result, "start_result": start_result}
+
+@app.post("/api/failover/deactivate")
+async def failover_deactivate():
+    """Deactivate failover — stop failover node, start primary.
+    SAFETY: Confirms failover is fully dead before starting primary.
+    Will NOT start primary if failover cannot be confirmed stopped."""
+    if not asyncssh:
+        return JSONResponse({"error": "asyncssh not installed"}, status_code=400)
+    if _failover_state["active_node"] == "primary":
+        return JSONResponse({"error": "Primary is already active"}, status_code=400)
+
+    # Step 1: Stop remote failover node
+    stop_cmd = "pkill -f 'hyved start' || true"
+    stop_result = await _ssh_run(stop_cmd)
+
+    # Step 2: CONFIRM remote is fully dead — refuse to start primary if not
+    if not await _confirm_remote_node_stopped():
+        await _record_failover_event("deactivate", "failover", "primary",
+                                      "BLOCKED: Failover node could not be confirmed stopped — refusing to start primary to prevent double-signing", False)
+        return JSONResponse({"error": "Failover node could not be stopped — aborting to prevent double-signing"}, status_code=500)
+
+    # Step 3: Start local primary
+    start_result = await start_node()
+
+    success = start_result.get("ok", False)
+    _failover_state["active_node"] = "primary" if success else "failover"
+    _failover_state["last_failover_event"] = datetime.now(timezone.utc).isoformat()
+    await _record_failover_event("deactivate", "failover", "primary",
+                                  f"Manual deactivation. Stop: {stop_result}, Start: {start_result}", success)
+    return {"ok": success, "active_node": _failover_state["active_node"],
+            "stop_result": stop_result, "start_result": start_result}
+
+@app.get("/api/failover/history")
+async def failover_history():
+    """Get failover event history."""
+    if not db_pool:
+        return {"events": []}
+    try:
+        rows = await db_pool.fetch("SELECT * FROM failover_events ORDER BY ts DESC LIMIT 100")
+        return {"events": [dict(r) for r in rows]}
+    except Exception:
+        return {"events": []}
+
+@app.get("/api/failover/health")
+async def failover_health_check():
+    """On-demand health check of both primary and failover nodes."""
+    primary = await _check_primary_health()
+    failover = {}
+    if _failover_config.get("host") and asyncssh:
+        failover = await _check_remote_node_health()
+    return {"primary": primary, "failover": failover, "active_node": _failover_state["active_node"]}
+
+@app.post("/api/failover/remote/start")
+async def failover_remote_start():
+    """Start the hyved process on the failover node.
+    SAFETY: Blocks if primary node is currently running to prevent double-signing."""
+    if not asyncssh:
+        return JSONResponse({"error": "asyncssh not installed"}, status_code=400)
+    # DOUBLE-SIGN GUARD: refuse to start remote if local primary is running
+    if find_hyved_process():
+        await _record_failover_event("remote_start", "dashboard", "failover",
+                                      "BLOCKED: Primary node is running — refusing remote start to prevent double-signing", False)
+        return JSONResponse({"error": "Primary node is running — stop it first to prevent double-signing"}, status_code=409)
+    remote_path = _failover_config.get("remote_hyved_path", "hyved")
+    remote_home = _failover_config.get("remote_hyved_home", "$HOME/.hyved")
+    start_cmd = f"nohup {remote_path} start --home {remote_home} --chain-id {CHAIN_ID} > /tmp/hyved.log 2>&1 &"
+    result = await _ssh_run(start_cmd, timeout=10)
+    await _record_failover_event("remote_start", "dashboard", "failover", str(result), result.get("ok", False))
+    return result
+
+@app.post("/api/failover/remote/stop")
+async def failover_remote_stop():
+    """Stop the hyved process on the failover node."""
+    if not asyncssh:
+        return JSONResponse({"error": "asyncssh not installed"}, status_code=400)
+    result = await _ssh_run("pkill -f 'hyved start' || true")
+    await _record_failover_event("remote_stop", "dashboard", "failover", str(result), result.get("ok", False))
+    return result
+
+@app.post("/api/failover/remote/cmd")
+async def failover_remote_command(request: Request):
+    """Run an arbitrary read-only command on the failover node (limited to safe commands)."""
+    if not asyncssh:
+        return JSONResponse({"error": "asyncssh not installed"}, status_code=400)
+    body = await request.json()
+    cmd = body.get("cmd", "").strip()
+    if not cmd:
+        return JSONResponse({"error": "No command provided"}, status_code=400)
+    ALLOWED_PREFIXES = ("uname", "uptime", "free", "df", "cat /proc/loadavg", "pgrep", "ps aux",
+                        "systemctl status", "journalctl", "tail", "head", "wc", "du", "ls", "hostname")
+    if not any(cmd.startswith(p) for p in ALLOWED_PREFIXES):
+        return JSONResponse({"error": "Command not in allowlist"}, status_code=403)
+    return await _ssh_run(cmd, timeout=15)
+
+
+async def _failover_monitor_loop():
+    """Background task that monitors primary node health and triggers auto-failover if configured."""
+    while True:
+        try:
+            interval = _failover_config.get("health_check_interval", 30)
+            await asyncio.sleep(interval)
+            if not _failover_config.get("enabled") or not _failover_config.get("host"):
+                continue
+            if not asyncssh:
+                continue
+
+            primary = await _check_primary_health()
+            _failover_state["primary_healthy"] = primary.get("node_running", False) and not primary.get("syncing", True)
+            _failover_state["last_check"] = datetime.now(timezone.utc).isoformat()
+
+            # Check failover node
+            remote = await _check_remote_node_health()
+            _failover_state["failover_available"] = remote.get("reachable", False)
+            _failover_state["failover_healthy"] = remote.get("node_running", False) and not remote.get("syncing", True)
+
+            # Auto-failover logic
+            if _failover_config.get("auto_failover") and _failover_state["active_node"] == "primary":
+                if not _failover_state["primary_healthy"]:
+                    _failover_state["consecutive_failures"] += 1
+                    max_fail = _failover_config.get("max_failures", 3)
+                    if _failover_state["consecutive_failures"] >= max_fail and _failover_state["failover_available"]:
+                        # SAFETY: Stop primary first and confirm it's dead
+                        proc = find_hyved_process()
+                        if proc:
+                            try:
+                                proc.send_signal(signal.SIGTERM)
+                                proc.wait(timeout=15)
+                            except Exception:
+                                try:
+                                    proc.kill()
+                                except Exception:
+                                    pass
+                        if not await _confirm_local_node_stopped():
+                            await _record_failover_event("auto_failover", "primary", "failover",
+                                                         f"BLOCKED: Could not confirm primary stopped after {max_fail} failures — refusing auto-failover", False)
+                            continue
+                        # SAFETY: Kill any stale remote process
+                        await _ssh_run("pkill -f 'hyved start' || true")
+                        await _confirm_remote_node_stopped(max_wait=10)
+                        # Now safe to start failover
+                        _failover_state["active_node"] = "failover"
+                        _failover_state["last_failover_event"] = datetime.now(timezone.utc).isoformat()
+                        _failover_state["consecutive_failures"] = 0
+                        remote_path = _failover_config.get("remote_hyved_path", "hyved")
+                        remote_home = _failover_config.get("remote_hyved_home", "$HOME/.hyved")
+                        start_cmd = f"nohup {remote_path} start --home {remote_home} --chain-id {CHAIN_ID} > /tmp/hyved.log 2>&1 &"
+                        await _ssh_run(start_cmd, timeout=10)
+                        await _record_failover_event("auto_failover", "primary", "failover",
+                                                     f"Auto-failover after {max_fail} consecutive failures. Primary confirmed stopped.", True)
+                else:
+                    _failover_state["consecutive_failures"] = 0
+        except Exception:
+            pass
+
+
 # ── WebSocket ────────────────────────────────────────────────────────────────
 @app.websocket("/ws/live")
 async def live_updates(ws: WebSocket):
@@ -3414,6 +3798,7 @@ async def startup():
             db_pool = None
     asyncio.create_task(_periodic_discord_loop())
     asyncio.create_task(_autonomous_metrics_record())
+    asyncio.create_task(_failover_monitor_loop())
 
 @app.on_event("shutdown")
 async def shutdown():

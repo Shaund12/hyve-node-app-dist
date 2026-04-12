@@ -19,7 +19,7 @@ export function ValidatorCompareScreen() {
   const validators = data.validators || [];
 
   return (
-    <ScreenContainer>
+    <ScreenContainer onRefresh={reload}>
       <Card title="Validator Ranking" icon="🏆">
         <View style={styles.row}>
           <MetricCard label="Our Rank" value={`#${data.our_rank || '—'}`} color={colors.cyan} />
@@ -41,7 +41,7 @@ export function ValidatorCompareScreen() {
               {v.moniker}
             </Text>
             <Text style={[styles.td, {width: 80}]}>{fmtHyve(v.tokens || 0, 0)}</Text>
-            <Text style={[styles.td, {width: 50}]}>{((v.commission || 0) * 100).toFixed(0)}%</Text>
+            <Text style={[styles.td, {width: 50}]}>{(v.commission || 0).toFixed(0)}%</Text>
           </View>
         ))}
       </Card>

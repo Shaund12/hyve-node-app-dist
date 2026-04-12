@@ -9,13 +9,15 @@ import {useApi} from '../../hooks/useApi';
 import {fmt} from '../../utils/format';
 
 export function RpcScreen() {
-  const {data} = useApi<any>('/api/rpc-metrics', 15000);
-  const {data: cfg} = useApi<any>('/api/rpc-config');
+  const {data, reload} = useApi<any>('/api/rpc-metrics', 15000);
+  const {data: cfg, reload: reloadCfg} = useApi<any>('/api/rpc-config');
 
   const stats: any[] = data?.stats || [];
 
+  const refreshAll = async () => { await reload(); await reloadCfg(); };
+
   return (
-    <ScreenContainer>
+    <ScreenContainer onRefresh={refreshAll}>
       <Card title="RPC Metrics Summary" icon="📊">
         <View style={styles.row}>
           <MetricCard label="Total Endpoints" value={stats.length} />

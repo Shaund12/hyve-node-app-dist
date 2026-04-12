@@ -16,7 +16,7 @@ export function DelegatorsScreen() {
   if (!data) return null;
 
   return (
-    <ScreenContainer>
+    <ScreenContainer onRefresh={reload}>
       <Card title="Delegators" icon="👥">
         <View style={styles.row}>
           <MetricCard label="Total Delegated" value={fmtHyve(data.total || 0, 2)} color={colors.cyan} sub="HYVE" />
@@ -30,7 +30,7 @@ export function DelegatorsScreen() {
             <Text style={styles.addr} numberOfLines={1}>{shortenAddr(d.address)}</Text>
             <View style={{alignItems: 'flex-end'}}>
               <Text style={styles.amount}>{fmtHyve(d.amount, 2)} HYVE</Text>
-              <Text style={styles.pct}>{d.share_pct?.toFixed(2)}%</Text>
+              <Text style={styles.pct}>{d.share_pct?.toFixed(2) ?? '—'}%</Text>
             </View>
           </View>
         ))}

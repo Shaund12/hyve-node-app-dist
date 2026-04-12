@@ -15,6 +15,9 @@ export function StakingScreen() {
   const {data, loading, error, reload} = useApi<any>('/api/staking', 30000);
   const [claiming, setClaiming] = useState(false);
   const [compounding, setCompounding] = useState(false);
+  const [delegating, setDelegating] = useState(false);
+  const [delegateAmt, setDelegateAmt] = useState('');
+  const [showDelegate, setShowDelegate] = useState(false);
 
   if (loading && !data) return <LoadingView />;
   if (error) return <ErrorView message={error} onRetry={reload} />;
@@ -64,8 +67,36 @@ export function StakingScreen() {
 
   const v = data.our_validator || {};
 
+  const delegate = async () => {
+    const amt = parseFloat(delegateAmt);
+    if (!amt || amt <= 0) {
+      Alert.alert('Error', 'Enter a valid amount');
+      return;
+    }
+    Alert.alert('Delegate', `Delegate ${amt} HYVE to your validator?`, [
+      {text: 'Cancel', style: 'cancel'},
+      {
+        text: 'Delegate',
+        onPress: async () => {
+          setDelegating(true);
+          try {
+            const r = await api.post('/api/tx/delegate', {amount: amt});
+            Alert.alert(r.ok ? 'Success' : 'Error', r.ok ? `Delegated ${amt} HYVE` : r.error || 'Failed');
+            setDelegateAmt('');
+            setShowDelegate(false);
+            reload();
+          } catch (e: any) {
+            Alert.alert('Error', e.message);
+          } finally {
+            setDelegating(false);
+          }
+        },
+      },
+    ]);
+  };
+
   return (
-    <ScreenContainer>
+    <ScreenContainer onRefresh={reload}>
       <Card title="Balances" icon="💰">
         <View style={styles.row}>
           <MetricCard label="Available" value={fmtHyve(data.available)} color={colors.green} sub="HYVE" />
@@ -85,13 +116,29 @@ export function StakingScreen() {
           <Button title="Claim Rewards" onPress={claimRewards} loading={claiming} style={{flex: 1}} />
           <Button title="Compound" onPress={compound} loading={compounding} variant="secondary" style={{flex: 1}} />
         </View>
+        <View style={[styles.row, {marginTop: 8}]}>
+          <Button title={showDelegate ? 'Cancel' : 'Delegate'} onPress={() => { setShowDelegate(!showDelegate); setDelegateAmt(''); }} variant="secondary" style={{flex: 1}} />
+        </View>
+        {showDelegate && (
+          <View style={{marginTop: 8}}>
+            <TextInput
+              style={styles.input}
+              placeholder="Amount (HYVE)"
+              placeholderTextColor={colors.text3}
+              value={delegateAmt}
+              onChangeText={setDelegateAmt}
+              keyboardType="decimal-pad"
+            />
+            <Button title="Confirm Delegate" onPress={delegate} loading={delegating} />
+          </View>
+        )}
       </Card>
 
       <Card title="Our Validator" icon="🏛">
-        <Text style={styles.moniker}>{v.description?.moniker || 'Unknown'}</Text>
+        <Text style={styles.moniker}>{v.moniker || 'Unknown'}</Text>
         <View style={[styles.row, {marginTop: 8}]}>
-          <MetricCard label="Rank" value={`#${v.rank || '—'}`} />
-          <MetricCard label="Commission" value={`${((v.commission?.commission_rates?.rate || 0) * 100).toFixed(1)}%`} />
+          <MetricCard label="Rank" value={`#${data.all_validators?.findIndex((val: any) => val.moniker === v.moniker) + 1 || '—'}`} />
+          <MetricCard label="Commission" value={`${(v.commission_rate || 0).toFixed(1)}%`} />
           <MetricCard label="Tokens" value={fmtHyve(v.tokens || 0, 0)} />
         </View>
         <View style={[styles.row, {marginTop: 8}]}>
@@ -104,8 +151,8 @@ export function StakingScreen() {
           {data.all_validators.slice(0, 20).map((val: any, i: number) => (
             <View key={i} style={styles.valRow}>
               <Text style={styles.valRank}>#{val.rank || i + 1}</Text>
-              <Text style={[styles.valName, val.is_ours && {color: colors.cyan}]} numberOfLines={1}>
-                {val.description?.moniker || 'Unknown'}
+              <Text style={[styles.valName, val.moniker === v.moniker && {color: colors.cyan}]} numberOfLines={1}>
+                {val.moniker || 'Unknown'}
               </Text>
               <Text style={styles.valTokens}>{fmtHyve(val.tokens || 0, 0)}</Text>
             </View>
@@ -123,4 +170,5 @@ const styles = StyleSheet.create({
   valRank: {color: colors.text3, fontSize: 12, width: 30, fontFamily: fonts.mono},
   valName: {color: colors.text1, fontSize: 13, flex: 1},
   valTokens: {color: colors.text2, fontSize: 12, fontFamily: fonts.mono},
+  input: {backgroundColor: colors.bg3, borderRadius: 8, padding: 12, color: colors.text1, fontSize: 14, marginBottom: 8},
 });

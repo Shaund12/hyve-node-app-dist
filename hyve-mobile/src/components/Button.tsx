@@ -5,8 +5,19 @@ import {
   StyleSheet,
   ActivityIndicator,
   ViewStyle,
+  Platform,
 } from 'react-native';
 import {colors} from '../utils/theme';
+
+let triggerHaptic: (() => void) | null = null;
+try {
+  const HapticFeedback = require('react-native-haptic-feedback').default;
+  triggerHaptic = () => {
+    try {
+      HapticFeedback.trigger('impactLight', {enableVibrateFallback: true, ignoreAndroidSystemSettings: false});
+    } catch {}
+  };
+} catch {}
 
 interface Props {
   title: string;
@@ -26,10 +37,15 @@ export function Button({title, onPress, variant = 'primary', loading, disabled, 
       : colors.cyan;
   const fg = variant === 'secondary' ? colors.text1 : '#000';
 
+  const handlePress = () => {
+    if (triggerHaptic) triggerHaptic();
+    onPress();
+  };
+
   return (
     <TouchableOpacity
       style={[styles.btn, {backgroundColor: bg, opacity: disabled ? 0.4 : 1}, style]}
-      onPress={onPress}
+      onPress={handlePress}
       disabled={disabled || loading}
       activeOpacity={0.7}>
       {loading ? (

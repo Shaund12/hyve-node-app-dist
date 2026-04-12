@@ -1,6 +1,6 @@
 {
   "name": "HyveMobile",
-  "version": "0.0.1",
+  "version": "1.4.0",
   "private": true,
   "scripts": {
     "android": "react-native run-android",
@@ -11,15 +11,23 @@
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.1.2",
+    "@react-native-community/netinfo": "^12.0.1",
     "@react-native/new-app-screen": "0.85.0",
     "@react-navigation/bottom-tabs": "^7.15.9",
-    "@react-navigation/drawer": "^7.9.8",
+    "@react-navigation/material-top-tabs": "^7.4.23",
     "@react-navigation/native": "^7.2.2",
+    "@react-navigation/native-stack": "^7.14.10",
     "react": "19.2.3",
     "react-native": "0.85.0",
     "react-native-gesture-handler": "^2.31.1",
+    "react-native-haptic-feedback": "^3.0.0",
+    "react-native-pager-view": "^8.0.1",
     "react-native-safe-area-context": "^5.7.0",
-    "react-native-screens": "^4.24.0"
+    "react-native-screens": "^4.24.0",
+    "react-native-svg": "^15.15.4",
+    "react-native-tab-view": "^4.3.0",
+    "react-native-vector-icons": "^10.3.0",
+    "victory-native": "^41.20.2"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
@@ -35,6 +43,7 @@
     "@react-native/typescript-config": "0.85.0",
     "@types/jest": "^29.5.13",
     "@types/react": "^19.2.0",
+    "@types/react-native-vector-icons": "^6.4.18",
     "@types/react-test-renderer": "^19.1.0",
     "eslint": "^8.19.0",
     "jest": "^29.6.3",

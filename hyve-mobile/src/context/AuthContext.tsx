@@ -1,5 +1,7 @@
-import React, {createContext, useContext, useState, useEffect, useCallback, ReactNode} from 'react';
+import React, {createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode} from 'react';
+import {AppState} from 'react-native';
 import * as api from '../api/client';
+import {setOnUnauthorized} from '../api/client';
 
 type AuthState = 'loading' | 'unconfigured' | 'unauthenticated' | 'authenticated';
 
@@ -34,6 +36,27 @@ export function AuthProvider({children}: {children: ReactNode}) {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    setOnUnauthorized(() => setState('unauthenticated'));
+  }, []);
+
+  // Re-validate auth when app returns from background
+  const appState = useRef(AppState.currentState);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', nextState => {
+      if (appState.current.match(/inactive|background/) && nextState === 'active') {
+        // App came to foreground — check session still valid
+        if (state === 'authenticated') {
+          api.checkAuth().then(ok => {
+            if (!ok) setState('unauthenticated');
+          });
+        }
+      }
+      appState.current = nextState;
+    });
+    return () => sub.remove();
+  }, [state]);
 
   const login = async (username: string, password: string) => {
     const data = await api.login(username, password);

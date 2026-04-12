@@ -49,7 +49,7 @@ export function GovernanceScreen() {
   };
 
   return (
-    <ScreenContainer>
+    <ScreenContainer onRefresh={reload}>
       {proposals.map((p: any) => (
         <Card key={p.id}>
           <View style={styles.headerRow}>

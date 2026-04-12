@@ -11,23 +11,25 @@ import {fmt, fmtHyve} from '../../utils/format';
 
 export function SigningScreen() {
   const {data, loading, error, reload} = useApi<any>('/api/signing', 15000);
-  const {data: risk} = useApi<any>('/api/slash-risk', 15000);
+  const {data: risk, reload: reloadRisk} = useApi<any>('/api/slash-risk', 15000);
+
+  const refreshAll = async () => { await reload(); await reloadRisk(); };
 
   if (loading && !data) return <LoadingView />;
   if (error) return <ErrorView message={error} onRetry={reload} />;
   if (!data) return null;
 
   return (
-    <ScreenContainer>
+    <ScreenContainer onRefresh={refreshAll}>
       <Card title="Signing Window" icon="✍️">
         <View style={styles.row}>
-          <MetricCard label="Uptime" value={`${data.uptime_pct?.toFixed(2)}%`} color={data.uptime_pct >= 99 ? colors.green : colors.orange} />
-          <MetricCard label="Missed Blocks" value={fmt(data.missed_blocks || 0)} color={data.missed_blocks > 100 ? colors.red : colors.green} />
+          <MetricCard label="Uptime" value={`${data.uptime_pct?.toFixed(2) ?? '—'}%`} color={(data.uptime_pct ?? 0) >= 99 ? colors.green : colors.orange} />
+          <MetricCard label="Missed Blocks" value={fmt(data.missed_blocks || 0)} color={(data.missed_blocks ?? 0) > 100 ? colors.red : colors.green} />
         </View>
         <View style={[styles.row, {marginTop: 12}]}>
           <MetricCard label="Signed" value={fmt(data.signed_blocks || 0)} />
           <MetricCard label="Window" value={fmt(data.window || 0)} />
-          <MetricCard label="Progress" value={`${data.window_progress?.toFixed(0)}%`} />
+          <MetricCard label="Progress" value={`${data.window_progress?.toFixed(0) ?? '—'}%`} />
         </View>
       </Card>
 
@@ -43,23 +45,23 @@ export function SigningScreen() {
       {risk && (
         <Card title="Slash Risk" icon="⚠️">
           <View style={styles.row}>
-            <MetricCard label="Risk" value={`${risk.risk_pct?.toFixed(1)}%`} color={risk.zone === 'safe' ? colors.green : risk.zone === 'warning' ? colors.orange : colors.red} />
+            <MetricCard label="Risk" value={`${risk.risk_pct?.toFixed(1) ?? '—'}%`} color={risk.zone === 'safe' ? colors.green : risk.zone === 'caution' ? colors.orange : colors.red} />
             <MetricCard label="Remaining" value={fmt(risk.remaining_before_jail || 0)} sub="blocks before jail" />
           </View>
           <View style={[styles.row, {marginTop: 8}]}>
-            <Badge label={risk.zone?.toUpperCase() || '—'} severity={risk.zone === 'safe' ? 'success' : risk.zone === 'warning' ? 'warning' : 'error'} />
+            <Badge label={risk.zone?.toUpperCase() || '—'} severity={risk.zone === 'safe' ? 'success' : risk.zone === 'caution' ? 'warning' : 'error'} />
           </View>
           <View style={styles.gaugeContainer}>
-            <View style={[styles.gaugeBar, {width: `${Math.min(risk.risk_pct || 0, 100)}%`, backgroundColor: risk.zone === 'safe' ? colors.green : risk.zone === 'warning' ? colors.orange : colors.red}]} />
+            <View style={[styles.gaugeBar, {width: `${Math.min(risk.risk_pct || 0, 100)}%`, backgroundColor: risk.zone === 'safe' ? colors.green : risk.zone === 'caution' ? colors.orange : colors.red}]} />
           </View>
         </Card>
       )}
 
       <Card title="Slashing Params" icon="📜">
         <View style={styles.row}>
-          <MetricCard label="Min Signed" value={`${(data.min_signed_pct * 100).toFixed(0)}%`} />
-          <MetricCard label="Downtime Slash" value={`${(data.slash_downtime_pct * 100).toFixed(2)}%`} />
-          <MetricCard label="Double Sign" value={`${(data.slash_double_sign_pct * 100).toFixed(0)}%`} />
+          <MetricCard label="Min Signed" value={`${(data.min_signed_pct ?? 0).toFixed(0)}%`} />
+          <MetricCard label="Downtime Slash" value={`${(data.slash_downtime_pct ?? 0).toFixed(2)}%`} />
+          <MetricCard label="Double Sign" value={`${(data.slash_double_sign_pct ?? 0).toFixed(0)}%`} />
         </View>
       </Card>
     </ScreenContainer>

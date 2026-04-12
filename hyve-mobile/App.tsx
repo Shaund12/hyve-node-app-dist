@@ -3,12 +3,15 @@ import {StatusBar, View, Text} from 'react-native';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 import {NavigationContainer} from '@react-navigation/native';
 import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
+import {createMaterialTopTabNavigator} from '@react-navigation/material-top-tabs';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import {GestureHandlerRootView} from 'react-native-gesture-handler';
+import Icon from 'react-native-vector-icons/Ionicons';
 
 import {AuthProvider, useAuth} from './src/context/AuthContext';
 import {LoadingView} from './src/components/Layout';
 import {ErrorBoundary} from './src/components/ErrorBoundary';
+import {ConnectionBanner} from './src/components/ConnectionBanner';
 import {colors} from './src/utils/theme';
 
 // Auth screens
@@ -24,6 +27,7 @@ import {StakingScreen} from './src/screens/staking/StakingScreen';
 import {SigningScreen} from './src/screens/staking/SigningScreen';
 import {DelegatorsScreen} from './src/screens/staking/DelegatorsScreen';
 import {GovernanceScreen} from './src/screens/staking/GovernanceScreen';
+import {VoteHistoryScreen} from './src/screens/staking/VoteHistoryScreen';
 
 // Analytics
 import {RewardsScreen} from './src/screens/analytics/RewardsScreen';
@@ -52,6 +56,7 @@ import {RpcScreen} from './src/screens/operations/RpcScreen';
 // Config
 import {SettingsScreen} from './src/screens/config/SettingsScreen';
 import {AlertsScreen} from './src/screens/config/AlertsScreen';
+import {AlertHistoryScreen} from './src/screens/config/AlertHistoryScreen';
 import {UpdateScreen} from './src/screens/config/UpdateScreen';
 
 const Tab = createBottomTabNavigator();
@@ -81,59 +86,76 @@ const stackOpts = {
 };
 
 // --- Staking Tab (sub-tabs) ---
-const StakingTab = createBottomTabNavigator();
+const StakingTab = createMaterialTopTabNavigator();
 function StakingTabs() {
   return (
-    <StakingTab.Navigator
-      screenOptions={{
-        headerShown: false,
-        tabBarStyle: {backgroundColor: colors.bg2, borderTopColor: colors.border},
-        tabBarActiveTintColor: colors.cyan,
-        tabBarInactiveTintColor: colors.text3,
-      }}>
-      <StakingTab.Screen name="Balances" component={StakingScreen} options={{tabBarIcon: () => <Text>💰</Text>, tabBarLabel: 'Balances'}} />
-      <StakingTab.Screen name="Signing" component={SigningScreen} options={{tabBarIcon: () => <Text>✍️</Text>, tabBarLabel: 'Signing'}} />
-      <StakingTab.Screen name="Delegators" component={DelegatorsScreen} options={{tabBarIcon: () => <Text>👥</Text>, tabBarLabel: 'Delegators'}} />
-      <StakingTab.Screen name="Governance" component={GovernanceScreen} options={{tabBarIcon: () => <Text>🗳️</Text>, tabBarLabel: 'Governance'}} />
-    </StakingTab.Navigator>
+    <View style={{flex: 1, backgroundColor: colors.bg1}}>
+      <StakingTab.Navigator
+        screenOptions={{
+          tabBarStyle: {backgroundColor: colors.bg2, elevation: 0, shadowOpacity: 0},
+          tabBarActiveTintColor: colors.cyan,
+          tabBarInactiveTintColor: colors.text3,
+          tabBarIndicatorStyle: {backgroundColor: colors.cyan, height: 2},
+          tabBarLabelStyle: {fontSize: 12, fontWeight: '600', textTransform: 'none'},
+          tabBarItemStyle: {padding: 0},
+          swipeEnabled: true,
+        }}>
+        <StakingTab.Screen name="Balances" component={StakingScreen} />
+        <StakingTab.Screen name="Signing" component={SigningScreen} />
+        <StakingTab.Screen name="Delegators" component={DelegatorsScreen} />
+        <StakingTab.Screen name="Governance" component={GovernanceScreen} />
+        <StakingTab.Screen name="Votes" component={VoteHistoryScreen} />
+      </StakingTab.Navigator>
+    </View>
   );
 }
 
 // --- Analytics Tab (sub-tabs) ---
-const AnalyticsTab = createBottomTabNavigator();
+const AnalyticsTab = createMaterialTopTabNavigator();
 function AnalyticsTabs() {
   return (
-    <AnalyticsTab.Navigator
-      screenOptions={{
-        headerShown: false,
-        tabBarStyle: {backgroundColor: colors.bg2, borderTopColor: colors.border},
-        tabBarActiveTintColor: colors.cyan,
-        tabBarInactiveTintColor: colors.text3,
-      }}>
-      <AnalyticsTab.Screen name="Rewards" component={RewardsScreen} options={{tabBarIcon: () => <Text>🎁</Text>}} />
-      <AnalyticsTab.Screen name="Earnings" component={EarningsScreen} options={{tabBarIcon: () => <Text>💵</Text>}} />
-      <AnalyticsTab.Screen name="Rank" component={RankHistoryScreen} options={{tabBarIcon: () => <Text>🏆</Text>}} />
-      <AnalyticsTab.Screen name="Compare" component={ValidatorCompareScreen} options={{tabBarIcon: () => <Text>⚖️</Text>}} />
-    </AnalyticsTab.Navigator>
+    <View style={{flex: 1, backgroundColor: colors.bg1}}>
+      <AnalyticsTab.Navigator
+        screenOptions={{
+          tabBarStyle: {backgroundColor: colors.bg2, elevation: 0, shadowOpacity: 0},
+          tabBarActiveTintColor: colors.cyan,
+          tabBarInactiveTintColor: colors.text3,
+          tabBarIndicatorStyle: {backgroundColor: colors.cyan, height: 2},
+          tabBarLabelStyle: {fontSize: 12, fontWeight: '600', textTransform: 'none'},
+          tabBarItemStyle: {padding: 0},
+          tabBarScrollEnabled: true,
+          swipeEnabled: true,
+        }}>
+        <AnalyticsTab.Screen name="Rewards" component={RewardsScreen} />
+        <AnalyticsTab.Screen name="Earnings" component={EarningsScreen} />
+        <AnalyticsTab.Screen name="Rank" component={RankHistoryScreen} />
+        <AnalyticsTab.Screen name="Compare" component={ValidatorCompareScreen} />
+      </AnalyticsTab.Navigator>
+    </View>
   );
 }
 
 // --- Operations Tab (sub-tabs) ---
-const OpsTab = createBottomTabNavigator();
+const OpsTab = createMaterialTopTabNavigator();
 function OperationsTabs() {
   return (
-    <OpsTab.Navigator
-      screenOptions={{
-        headerShown: false,
-        tabBarStyle: {backgroundColor: colors.bg2, borderTopColor: colors.border},
-        tabBarActiveTintColor: colors.cyan,
-        tabBarInactiveTintColor: colors.text3,
-      }}>
-      <OpsTab.Screen name="NodeCtrl" component={NodeControlScreen} options={{tabBarIcon: () => <Text>🖥️</Text>, tabBarLabel: 'Node'}} />
-      <OpsTab.Screen name="Logs" component={LogsScreen} options={{tabBarIcon: () => <Text>📋</Text>}} />
-      <OpsTab.Screen name="Upgrades" component={UpgradesScreen} options={{tabBarIcon: () => <Text>⬆️</Text>}} />
-      <OpsTab.Screen name="RPC" component={RpcScreen} options={{tabBarIcon: () => <Text>🔌</Text>}} />
-    </OpsTab.Navigator>
+    <View style={{flex: 1, backgroundColor: colors.bg1}}>
+      <OpsTab.Navigator
+        screenOptions={{
+          tabBarStyle: {backgroundColor: colors.bg2, elevation: 0, shadowOpacity: 0},
+          tabBarActiveTintColor: colors.cyan,
+          tabBarInactiveTintColor: colors.text3,
+          tabBarIndicatorStyle: {backgroundColor: colors.cyan, height: 2},
+          tabBarLabelStyle: {fontSize: 12, fontWeight: '600', textTransform: 'none'},
+          tabBarItemStyle: {padding: 0},
+          swipeEnabled: true,
+        }}>
+        <OpsTab.Screen name="Node" component={NodeControlScreen} />
+        <OpsTab.Screen name="Logs" component={LogsScreen} />
+        <OpsTab.Screen name="Upgrades" component={UpgradesScreen} />
+        <OpsTab.Screen name="RPC" component={RpcScreen} />
+      </OpsTab.Navigator>
+    </View>
   );
 }
 
@@ -151,6 +173,7 @@ function MoreStack() {
       <Stack.Screen name="Transactions" component={TxHistoryScreen} />
       <Stack.Screen name="Notes" component={NotesScreen} />
       <Stack.Screen name="Alerts" component={AlertsScreen} />
+      <Stack.Screen name="AlertHistory" component={AlertHistoryScreen} options={{title: 'Alert History'}} />
       <Stack.Screen name="Settings" component={SettingsScreen} />
       <Stack.Screen name="AppUpdate" component={UpdateScreen} options={{title: 'App Update'}} />
     </Stack.Navigator>
@@ -172,27 +195,27 @@ function MainTabs() {
       <Tab.Screen
         name="Overview"
         component={OverviewScreen}
-        options={{tabBarIcon: () => <Text>📊</Text>, tabBarLabel: 'Overview'}}
+        options={{tabBarIcon: ({color, size}) => <Icon name="pulse-outline" size={size} color={color} />, tabBarLabel: 'Overview'}}
       />
       <Tab.Screen
         name="Staking"
         component={StakingTabs}
-        options={{tabBarIcon: () => <Text>💰</Text>, tabBarLabel: 'Staking', headerShown: false}}
+        options={{tabBarIcon: ({color, size}) => <Icon name="layers-outline" size={size} color={color} />, tabBarLabel: 'Staking'}}
       />
       <Tab.Screen
         name="Analytics"
         component={AnalyticsTabs}
-        options={{tabBarIcon: () => <Text>📈</Text>, tabBarLabel: 'Analytics', headerShown: false}}
+        options={{tabBarIcon: ({color, size}) => <Icon name="trending-up-outline" size={size} color={color} />, tabBarLabel: 'Analytics'}}
       />
       <Tab.Screen
         name="Ops"
         component={OperationsTabs}
-        options={{tabBarIcon: () => <Text>⚙️</Text>, tabBarLabel: 'Ops', headerShown: false}}
+        options={{tabBarIcon: ({color, size}) => <Icon name="construct-outline" size={size} color={color} />, tabBarLabel: 'Ops'}}
       />
       <Tab.Screen
         name="MoreStack"
         component={MoreStack}
-        options={{tabBarIcon: () => <Text>☰</Text>, tabBarLabel: 'More', headerShown: false}}
+        options={{tabBarIcon: ({color, size}) => <Icon name="ellipsis-horizontal" size={size} color={color} />, tabBarLabel: 'More', headerShown: false}}
       />
     </Tab.Navigator>
   );
@@ -219,6 +242,7 @@ function App() {
         <ErrorBoundary>
           <AuthProvider>
             <NavigationContainer theme={navTheme}>
+              <ConnectionBanner />
               <AuthGate />
             </NavigationContainer>
           </AuthProvider>

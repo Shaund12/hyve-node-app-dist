@@ -1,9 +1,13 @@
-export function fmt(n: number): string {
-  return n.toLocaleString();
+export function fmt(n: number | undefined | null): string {
+  if (n == null || isNaN(n)) return '—';
+  const s = Math.floor(n).toString();
+  return s.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
-export function fmtHyve(raw: number | string, decimals = 4): string {
+export function fmtHyve(raw: number | string | undefined | null, decimals = 4): string {
+  if (raw == null) return '—';
   const v = typeof raw === 'string' ? parseFloat(raw) : raw;
+  if (isNaN(v)) return '—';
   return v.toFixed(decimals);
 }
 
@@ -28,6 +32,7 @@ export function timeAgo(ts: string): string {
   return `${days}d ago`;
 }
 
-export function mbStr(bytes: number): string {
+export function mbStr(bytes: number | undefined | null): string {
+  if (bytes == null || isNaN(bytes)) return '— MB';
   return (bytes / 1048576).toFixed(1) + ' MB';
 }

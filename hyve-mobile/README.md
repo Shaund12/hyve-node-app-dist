@@ -1,246 +1,97 @@
-# Hyve Validator Dashboard — Mobile App
+This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
 
-A React Native mobile client for the Hyve Validator Dashboard. Connects remotely to your running dashboard server — no validator node runs on the phone.
+# Getting Started
 
-## What It Does
+> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
 
-The mobile app provides full access to every dashboard feature over your network:
+## Step 1: Start Metro
 
-- **Overview** — Live node status, health score, alerts, staking summary
-- **Staking** — Balances, claim/compound rewards, delegator list, governance voting
-- **Analytics** — Commission income, earnings calculator, validator rank history, tax reports
-- **Network** — Peer list, recent blocks, whale alerts
-- **SHADE Token** — Balance, claim, emission stats
-- **Operations** — Node start/stop/restart, live logs, chain upgrades, RPC metrics
-- **Settings** — Alert thresholds, Discord notifications, auto-compound, password management
+First, you will need to run **Metro**, the JavaScript build tool for React Native.
 
-## Prerequisites
+To start the Metro dev server, run the following command from the root of your React Native project:
 
-| Tool | Version | Notes |
-|------|---------|-------|
-| Node.js | >= 20.x | `node --version` |
-| npm | >= 10.x | Comes with Node.js |
-| Java JDK | 17 | `sudo apt install openjdk-17-jdk-headless` (Linux) or install from [Adoptium](https://adoptium.net/) |
-| Android SDK | 36 | Via Android Studio or command-line tools |
-| Xcode | 15+ | **Mac only** — required for iOS builds |
+```sh
+# Using npm
+npm start
 
-## Quick Start (Android)
-
-### 1. Install Dependencies
-
-```bash
-cd hyve-mobile
-npm install
+# OR using Yarn
+yarn start
 ```
 
-### 2. Set Up Android SDK
+## Step 2: Build and run your app
 
-**Option A: Android Studio (recommended for beginners)**
-1. Install [Android Studio](https://developer.android.com/studio)
-2. Open Android Studio → SDK Manager → install Android SDK 36 and Build Tools 36.0.0
-3. Note the SDK path (usually `~/Android/Sdk`)
+With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
 
-**Option B: Command-line only**
-```bash
-# Download command-line tools
-mkdir -p ~/Android/Sdk
-cd /tmp
-curl -sL -o cmdline-tools.zip \
-  "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
-unzip -qo cmdline-tools.zip
-mkdir -p ~/Android/Sdk/cmdline-tools
-mv cmdline-tools ~/Android/Sdk/cmdline-tools/latest
+### Android
 
-# Set environment
-export ANDROID_HOME=~/Android/Sdk
-export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
-export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+```sh
+# Using npm
+npm run android
 
-# Accept licenses and install SDK components
-yes | sdkmanager --licenses
-sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+# OR using Yarn
+yarn android
 ```
 
-### 3. Configure SDK Path
+### iOS
 
-Create `android/local.properties`:
-```
-sdk.dir=/path/to/your/Android/Sdk
-```
+For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
 
-### 4. Build Debug APK
+The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
 
-```bash
-cd android
-export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64  # adjust for your system
-./gradlew assembleDebug
+```sh
+bundle install
 ```
 
-The APK will be at: `android/app/build/outputs/apk/debug/app-debug.apk`
+Then, and every time you update your native dependencies, run:
 
-### 5. Build Release APK (Signed)
-
-First, generate a signing keystore (one-time):
-```bash
-keytool -genkeypair -v \
-  -keystore android/app/hyve-release.keystore \
-  -alias hyve-key \
-  -keyalg RSA -keysize 2048 -validity 10000 \
-  -storepass YOUR_PASSWORD -keypass YOUR_PASSWORD \
-  -dname "CN=Your Name, O=Your Org, C=US"
+```sh
+bundle exec pod install
 ```
 
-Then update `android/app/build.gradle` — in the `signingConfigs` section, add a `release` block:
-```groovy
-signingConfigs {
-    // ... debug config ...
-    release {
-        storeFile file('hyve-release.keystore')
-        storePassword 'YOUR_PASSWORD'
-        keyAlias 'hyve-key'
-        keyPassword 'YOUR_PASSWORD'
-    }
-}
-buildTypes {
-    release {
-        signingConfig signingConfigs.release
-        minifyEnabled false
-        shrinkResources false
-        proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
-    }
-}
+For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+
+```sh
+# Using npm
+npm run ios
+
+# OR using Yarn
+yarn ios
 ```
 
-Build the release APK:
-```bash
-cd android
-./gradlew assembleRelease
-```
+If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
 
-The signed APK will be at: `android/app/build/outputs/apk/release/app-release.apk` (~60 MB)
+This is one way to run your app — you can also build it directly from Android Studio or Xcode.
 
-### 6. Install on Your Phone
+## Step 3: Modify your app
 
-1. Transfer the APK to your Android device (USB, email, cloud storage, ADB, etc.)
-2. On the phone, open the APK file
-3. Allow "Install from unknown sources" when prompted
-4. Open the app
+Now that you have successfully run the app, let's make changes!
 
-**Via ADB (if device is connected via USB):**
-```bash
-adb install android/app/build/outputs/apk/release/app-release.apk
-```
+Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
 
-## Quick Start (iOS)
+When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
 
-> **Requires a Mac with Xcode 15+.** iOS builds cannot be done on Linux or Windows.
+- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
+- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
 
-### 1. Install Dependencies
+## Congratulations! :tada:
 
-```bash
-cd hyve-mobile
-npm install
-cd ios && pod install && cd ..
-```
+You've successfully run and modified your React Native App. :partying_face:
 
-### 2. Build and Run
+### Now what?
 
-**Via Xcode:**
-1. Open `ios/HyveMobile.xcworkspace` in Xcode
-2. Select your target device or simulator
-3. Press Cmd+R to build and run
+- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
+- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
 
-**Via command line:**
-```bash
-npx react-native run-ios
-```
+# Troubleshooting
 
-### 3. Distribute to a Physical iPhone
+If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
 
-For installing on a real iPhone you need either:
-- **TestFlight** — Requires an Apple Developer account ($99/year). Archive the build in Xcode, upload to App Store Connect, distribute via TestFlight.
-- **Ad Hoc** — Register specific device UDIDs in your Apple Developer account, create a provisioning profile, archive and export as Ad Hoc IPA.
+# Learn More
 
-## Connecting to Your Dashboard
+To learn more about React Native, take a look at the following resources:
 
-When you first open the app:
-
-1. **Enter your dashboard server URL**
-   - Local network: `http://192.168.x.x:8420`
-   - With HTTPS: `https://validator.yourdomain.com`
-2. **Log in** with your dashboard admin credentials
-
-### Secure Remote Access (Recommended)
-
-For accessing your dashboard from anywhere, set up HTTPS with a reverse proxy:
-
-**Nginx + Let's Encrypt:**
-```nginx
-server {
-    server_name validator.yourdomain.com;
-
-    location / {
-        proxy_pass http://127.0.0.1:8420;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    location /ws/ {
-        proxy_pass http://127.0.0.1:8420;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_read_timeout 86400s;
-    }
-
-    listen 80;
-}
-```
-
-Then run:
-```bash
-sudo certbot --nginx -d validator.yourdomain.com
-```
-
-**Alternative: Tailscale (zero-config VPN)**
-1. Install Tailscale on your server and phone
-2. Access via Tailscale IP — encrypted, no ports exposed to the internet
-
-## Project Structure
-
-```
-hyve-mobile/
-├── App.tsx                    # Root: auth gate + drawer/tab navigation
-├── src/
-│   ├── api/client.ts          # API client, auth, WebSocket
-│   ├── context/AuthContext.tsx # Auth state machine
-│   ├── hooks/useApi.ts        # Polling data hook
-│   ├── components/            # Card, MetricCard, Badge, Button, Layout
-│   ├── utils/                 # Theme colors, formatting helpers
-│   └── screens/
-│       ├── ConnectScreen.tsx   # Server URL input
-│       ├── LoginScreen.tsx     # Auth login
-│       ├── OverviewScreen.tsx  # Dashboard home (WebSocket live)
-│       ├── staking/            # Balances, Signing, Delegators, Governance
-│       ├── analytics/          # Rewards, Earnings, Compare, Timeline, Uptime, Tax, Rank
-│       ├── network/            # Network overview, Whale Alerts
-│       ├── tokens/             # SHADE token
-│       ├── operations/         # Node Control, Logs, Upgrades, Tx History, Notes, RPC
-│       └── config/             # Settings, Alerts
-├── android/                   # Android native project
-├── ios/                       # iOS native project
-└── package.json
-```
-
-## Security Notes
-
-- The app stores your session cookie in device-local encrypted storage
-- The server URL is stored locally on device — not transmitted anywhere
-- All authentication goes through the same cookie-based auth as the web dashboard
-- **Always use HTTPS** when accessing over the internet
-- The keystore file (`hyve-release.keystore`) is your signing identity — back it up securely and never commit it to git
+- [React Native Website](https://reactnative.dev) - learn more about React Native.
+- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
+- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
+- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
+- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.

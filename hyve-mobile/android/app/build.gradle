@@ -2,6 +2,12 @@ apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 
+def keystorePropertiesFile = rootProject.file("keystore.properties")
+def keystoreProperties = new Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
 /**
  * This is the configuration block to customize your React Native Android app.
  * By default you don't need to apply any configuration, just uncomment the lines you need.
@@ -82,8 +88,8 @@ android {
         applicationId "com.hyvemobile"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 3
-        versionName "1.2"
+        versionCode 5
+        versionName "1.4"
     }
     signingConfigs {
         debug {
@@ -93,10 +99,10 @@ android {
             keyPassword 'android'
         }
         release {
-            storeFile file('hyve-release.keystore')
-            storePassword 'hyvedash2024'
-            keyAlias 'hyve-key'
-            keyPassword 'hyvedash2024'
+            storeFile file(keystoreProperties['storeFile'] ?: 'hyve-release.keystore')
+            storePassword keystoreProperties['storePassword'] ?: ''
+            keyAlias keystoreProperties['keyAlias'] ?: 'hyve-key'
+            keyPassword keystoreProperties['keyPassword'] ?: ''
         }
     }
     buildTypes {

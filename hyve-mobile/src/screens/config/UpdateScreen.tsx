@@ -8,7 +8,7 @@ import {Button} from '../../components/Button';
 import {LoadingView} from '../../components/Layout';
 import {colors, fonts} from '../../utils/theme';
 
-const CURRENT_VERSION = '1.2';
+const CURRENT_VERSION = '1.4';
 const UPDATE_BASE_URL = 'https://validator.pyvendr.com';
 const VERSION_URL = `${UPDATE_BASE_URL}/mobile/version.json`;
 
@@ -47,7 +47,7 @@ export function UpdateScreen() {
       clearTimeout(timer);
       if (!res.ok) throw new Error(`Server returned ${res.status}`);
       const json = await res.json();
-      json.available = !!(json.version && json.apk);
+      json.available = !!(json.version && json.url);
       setData(json);
     } catch (e: any) {
       setCheckError(e.name === 'AbortError' ? 'Request timed out' : e.message || 'Failed to check for updates');
@@ -62,7 +62,7 @@ export function UpdateScreen() {
   }, [checkForUpdate]);
 
   const downloadApk = useCallback(async () => {
-    const apkUrl = data?.download_url || `${UPDATE_BASE_URL}/mobile/${data?.apk}`;
+    const apkUrl = data?.url;
 
     Alert.alert(
       'Download Update',

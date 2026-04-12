@@ -89,7 +89,7 @@ export function UpgradesScreen() {
   };
 
   return (
-    <ScreenContainer>
+    <ScreenContainer onRefresh={reload}>
       {/* Pending Upgrade */}
       <Card title="Pending Upgrade" icon="⬆">
         {plan ? (

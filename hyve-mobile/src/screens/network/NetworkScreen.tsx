@@ -10,23 +10,25 @@ import {fmt, fmtHyve} from '../../utils/format';
 
 export function NetworkScreen() {
   const {data, loading, error, reload} = useApi<any>('/api/network', 30000);
-  const {data: peers} = useApi<any>('/api/peer-quality');
-  const {data: blocks} = useApi<any>('/api/blocks');
+  const {data: peers, reload: reloadPeers} = useApi<any>('/api/peer-quality');
+  const {data: blocks, reload: reloadBlocks} = useApi<any>('/api/blocks');
 
   if (loading && !data) return <LoadingView />;
   if (error) return <ErrorView message={error} onRetry={reload} />;
   if (!data) return null;
 
+  const refreshAll = async () => { await reload(); await reloadPeers(); await reloadBlocks(); };
+
   return (
-    <ScreenContainer>
+    <ScreenContainer onRefresh={refreshAll}>
       <Card title="Network Overview" icon="🌐">
         <View style={styles.row}>
           <MetricCard label="Active Validators" value={data.active_validators || 0} color={colors.green} />
-          <MetricCard label="Bonded Ratio" value={`${((data.bonded_ratio || 0) * 100).toFixed(1)}%`} color={colors.cyan} />
+          <MetricCard label="Bonded Ratio" value={`${(data.bonded_ratio || 0).toFixed(1)}%`} color={colors.cyan} />
         </View>
         <View style={[styles.row, {marginTop: 12}]}>
           <MetricCard label="Avg Block Time" value={`${(data.avg_block_time || 0).toFixed(1)}s`} />
-          <MetricCard label="Avg Commission" value={`${((data.avg_commission || 0) * 100).toFixed(1)}%`} />
+          <MetricCard label="Avg Commission" value={`${(data.avg_commission || 0).toFixed(1)}%`} />
         </View>
         <View style={[styles.row, {marginTop: 12}]}>
           <MetricCard label="Total Supply" value={fmtHyve(data.total_supply || 0, 0)} sub="HYVE" />
@@ -54,7 +56,7 @@ export function NetworkScreen() {
             <View key={i} style={styles.blockRow}>
               <Text style={styles.blockHeight}>#{fmt(b.height)}</Text>
               <Text style={styles.blockTxs}>{b.num_txs} txs</Text>
-              <Text style={styles.blockTime}>{new Date(b.time).toLocaleTimeString()}</Text>
+              <Text style={styles.blockTime}>{new Date(b.time).toISOString().split('T')[1].slice(0, 8)}</Text>
             </View>
           ))}
         </Card>

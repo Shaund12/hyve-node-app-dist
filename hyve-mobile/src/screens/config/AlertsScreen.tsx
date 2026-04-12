@@ -11,7 +11,7 @@ import * as api from '../../api/client';
 
 export function AlertsScreen() {
   const {data: alertCfg, reload} = useApi<any>('/api/alert-config');
-  const {data: notifCfg} = useApi<any>('/api/notifications/config');
+  const {data: notifCfg, reload: reloadNotif} = useApi<any>('/api/notifications/config');
   const [saving, setSaving] = useState(false);
 
   const [missedWarn, setMissedWarn] = useState('');
@@ -60,8 +60,10 @@ export function AlertsScreen() {
     }
   };
 
+  const refreshAll = async () => { await reload(); await reloadNotif(); };
+
   return (
-    <ScreenContainer>
+    <ScreenContainer onRefresh={refreshAll}>
       <Card title="Alert Thresholds" icon="🚨">
         <View style={styles.field}>
           <Text style={styles.label}>Missed Blocks (Warning)</Text>

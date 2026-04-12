@@ -13,13 +13,15 @@ import * as api from '../../api/client';
 export function SettingsScreen() {
   const {logout, serverUrl} = useAuth();
   const {data: alertCfg, reload: reloadAlerts} = useApi<any>('/api/alert-config');
-  const {data: discordCfg} = useApi<any>('/api/notifications/config');
+  const {data: discordCfg, reload: reloadDiscord} = useApi<any>('/api/notifications/config');
   const {data: autoCmp, reload: reloadAuto} = useApi<any>('/api/auto-compound');
-  const {data: txStatus} = useApi<any>('/api/tx/status');
+  const {data: txStatus, reload: reloadTx} = useApi<any>('/api/tx/status');
 
   const [curPw, setCurPw] = useState('');
   const [newPw, setNewPw] = useState('');
   const [changingPw, setChangingPw] = useState(false);
+  const [webhookUrl, setWebhookUrl] = useState('');
+  const [savingWebhook, setSavingWebhook] = useState(false);
 
   const changePw = async () => {
     if (newPw.length < 8) {
@@ -54,8 +56,37 @@ export function SettingsScreen() {
     } catch {}
   };
 
+  const saveWebhook = async () => {
+    if (!webhookUrl.trim()) {
+      Alert.alert('Error', 'Enter a webhook URL');
+      return;
+    }
+    setSavingWebhook(true);
+    try {
+      const r = await api.post('/api/notifications/discord', {webhook_url: webhookUrl.trim()});
+      Alert.alert(r.ok || r.configured ? 'Success' : 'Error', r.ok || r.configured ? 'Discord webhook saved' : r.error || 'Failed');
+      setWebhookUrl('');
+      reloadDiscord();
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setSavingWebhook(false);
+    }
+  };
+
+  const testDiscord = async () => {
+    try {
+      const r = await api.post('/api/notifications/test');
+      Alert.alert(r.ok ? 'Sent!' : 'Error', r.ok ? 'Test notification sent' : r.error || 'Failed');
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    }
+  };
+
+  const refreshAll = async () => { await reloadAlerts(); await reloadDiscord(); await reloadAuto(); await reloadTx(); };
+
   return (
-    <ScreenContainer>
+    <ScreenContainer onRefresh={refreshAll}>
       <Card title="Connection" icon="🔗">
         <Text style={styles.label}>Server</Text>
         <Text style={styles.serverUrl}>{serverUrl}</Text>
@@ -122,6 +153,22 @@ export function SettingsScreen() {
           label={discordCfg?.discord?.configured ? (discordCfg.discord.enabled ? 'Active' : 'Disabled') : 'Not Configured'}
           severity={discordCfg?.discord?.enabled ? 'success' : 'warning'}
         />
+        <View style={{marginTop: 12}}>
+          <TextInput
+            style={styles.input}
+            placeholder="Discord webhook URL"
+            placeholderTextColor={colors.text3}
+            value={webhookUrl}
+            onChangeText={setWebhookUrl}
+            autoCapitalize="none"
+          />
+          <View style={styles.row}>
+            <Button title="Save Webhook" onPress={saveWebhook} loading={savingWebhook} variant="secondary" style={{flex: 1}} />
+            {discordCfg?.discord?.configured && (
+              <Button title="Test" onPress={testDiscord} variant="secondary" style={{flex: 1}} />
+            )}
+          </View>
+        </View>
       </Card>
 
       <Button title="Sign Out" onPress={logout} variant="danger" style={{marginTop: 8}} />

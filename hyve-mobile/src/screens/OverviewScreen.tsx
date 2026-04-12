@@ -1,9 +1,10 @@
-import React, {useEffect, useState, useRef} from 'react';
-import {View, Text, StyleSheet} from 'react-native';
+import React, {useEffect, useState, useRef, useCallback} from 'react';
+import {View, Text, StyleSheet, AppState} from 'react-native';
 import {ScreenContainer} from '../components/Layout';
 import {Card} from '../components/Card';
 import {MetricCard} from '../components/MetricCard';
 import {Badge} from '../components/Badge';
+import {Sparkline} from '../components/Sparkline';
 import {colors, fonts} from '../utils/theme';
 import {fmt, fmtHyve} from '../utils/format';
 import * as api from '../api/client';
@@ -14,21 +15,29 @@ export function OverviewScreen() {
   const [signing, setSigning] = useState<any>(null);
   const [health, setHealth] = useState<any>(null);
   const [alerts, setAlerts] = useState<any[]>([]);
+  const [history, setHistory] = useState<any>(null);
+  const [wsConnected, setWsConnected] = useState(true);
   const ws = useRef<WebSocket | null>(null);
+  const reconnectTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const closed = useRef(false);
 
-  useEffect(() => {
-    // Initial REST load
-    Promise.all([
+  const loadAll = useCallback(async () => {
+    await Promise.all([
       api.get('/api/status').then(setStatus).catch(() => {}),
       api.get('/api/staking').then(setStaking).catch(() => {}),
       api.get('/api/signing').then(setSigning).catch(() => {}),
       api.get('/api/health-score').then(setHealth).catch(() => {}),
       api.get('/api/alerts').then(d => setAlerts(d?.alerts || [])).catch(() => {}),
+      api.get('/api/history').then(setHistory).catch(() => {}),
     ]);
+  }, []);
 
-    // WebSocket for live updates
+  const connectWs = useCallback(() => {
+    if (closed.current) return;
     try {
+      ws.current?.close();
       ws.current = api.createWebSocket('/ws/live');
+      ws.current.onopen = () => setWsConnected(true);
       ws.current.onmessage = e => {
         try {
           const d = JSON.parse(e.data);
@@ -37,12 +46,37 @@ export function OverviewScreen() {
           if (d.signing) setSigning(d.signing);
         } catch {}
       };
+      ws.current.onclose = () => {
+        setWsConnected(false);
+        if (!closed.current) {
+          reconnectTimer.current = setTimeout(connectWs, 5000);
+        }
+      };
+      ws.current.onerror = () => {
+        ws.current?.close();
+      };
     } catch {}
+  }, []);
+
+  useEffect(() => {
+    loadAll();
+    connectWs();
+
+    // Re-validate on app foreground
+    const sub = AppState.addEventListener('change', state => {
+      if (state === 'active') {
+        loadAll();
+        connectWs();
+      }
+    });
 
     return () => {
+      closed.current = true;
+      if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
       ws.current?.close();
+      sub.remove();
     };
-  }, []);
+  }, [loadAll, connectWs]);
 
   const running = status?.running;
   const synced = status?.sync?.catching_up === false;
@@ -50,7 +84,14 @@ export function OverviewScreen() {
   const peers = status?.peers?.count || 0;
 
   return (
-    <ScreenContainer>
+    <ScreenContainer onRefresh={loadAll}>
+      {/* WS Status */}
+      {!wsConnected && (
+        <View style={styles.wsBanner}>
+          <Text style={styles.wsText}>⟳ Reconnecting to live feed...</Text>
+        </View>
+      )}
+
       {/* Node Status */}
       <Card title="Node Status" icon="🖥">
         <View style={styles.row}>
@@ -75,6 +116,32 @@ export function OverviewScreen() {
           </View>
         )}
       </Card>
+
+      {/* Sparkline Trends */}
+      {history?.entries?.length > 5 && (
+        <Card title="Trends (24h)" icon="📈">
+          <View style={styles.sparkRow}>
+            <View style={styles.sparkItem}>
+              <Text style={styles.sparkLabel}>Height</Text>
+              <Sparkline data={history.entries.slice(-60).map((e: any) => e.height || 0)} color={colors.cyan} />
+            </View>
+            <View style={styles.sparkItem}>
+              <Text style={styles.sparkLabel}>Peers</Text>
+              <Sparkline data={history.entries.slice(-60).map((e: any) => e.peers || 0)} color={colors.green} />
+            </View>
+          </View>
+          <View style={[styles.sparkRow, {marginTop: 12}]}>
+            <View style={styles.sparkItem}>
+              <Text style={styles.sparkLabel}>CPU %</Text>
+              <Sparkline data={history.entries.slice(-60).map((e: any) => e.cpu || 0)} color={colors.orange} />
+            </View>
+            <View style={styles.sparkItem}>
+              <Text style={styles.sparkLabel}>Memory MB</Text>
+              <Sparkline data={history.entries.slice(-60).map((e: any) => e.memory || 0)} color={colors.purple} />
+            </View>
+          </View>
+        </Card>
+      )}
 
       {/* Health Score */}
       {health && (
@@ -155,4 +222,9 @@ const styles = StyleSheet.create({
   breakdownLabel: {color: colors.text2, fontSize: 12, textTransform: 'capitalize'},
   breakdownVal: {fontSize: 12, fontWeight: '600', fontFamily: fonts.mono},
   alertRow: {padding: 10, borderRadius: 8, marginBottom: 6},
+  sparkRow: {flexDirection: 'row', gap: 16},
+  sparkItem: {flex: 1, alignItems: 'center'},
+  sparkLabel: {color: colors.text3, fontSize: 10, fontWeight: '600', marginBottom: 4, textTransform: 'uppercase'},
+  wsBanner: {backgroundColor: colors.orangeBg, borderRadius: 8, paddingVertical: 6, paddingHorizontal: 12, marginBottom: 8, alignItems: 'center'},
+  wsText: {color: colors.orange, fontSize: 12, fontWeight: '600'},
 });

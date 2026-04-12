@@ -16,7 +16,7 @@ function uptimeColor(pct: number): string {
 }
 
 export function UptimeScreen() {
-  const {data} = useApi<any>('/api/uptime-heatmap');
+  const {data, reload} = useApi<any>('/api/uptime-heatmap');
   const days = data?.days || [];
 
   // Compute summary from available data
@@ -27,7 +27,7 @@ export function UptimeScreen() {
   const worst = recentDays.length > 0 ? Math.min(...recentDays.map((d: any) => d.uptime ?? 100)) : null;
 
   return (
-    <ScreenContainer>
+    <ScreenContainer onRefresh={reload}>
       {days.length > 0 && (
         <Card title="Uptime Summary" icon="📊">
           <View style={styles.row}>

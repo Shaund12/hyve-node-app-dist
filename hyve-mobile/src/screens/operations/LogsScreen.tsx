@@ -15,6 +15,7 @@ interface LogLine {
 }
 
 function classifyLine(line: string): LogLine['level'] {
+  if (typeof line !== 'string') return 'info';
   const l = line.toLowerCase();
   if (l.includes('err') || l.includes('panic') || l.includes('fatal')) return 'error';
   if (l.includes('warn')) return 'warn';
@@ -63,7 +64,7 @@ export function LogsScreen() {
         };
         ws.onmessage = (e) => {
           if (paused) return;
-          const text = e.data;
+          const text = typeof e.data === 'string' ? e.data : String(e.data ?? '');
           setLines(prev => {
             const next = [
               ...prev,

@@ -763,6 +763,7 @@ kbd{display:inline-flex;align-items:center;padding:1px 5px;border-radius:4px;fon
           <div class="tab" data-tab="upgrades" onclick="switchTab(this)">&#11014; Upgrades</div>
           <div class="tab" data-tab="alerthistory" onclick="switchTab(this)">&#128276; Alert History</div>
           <div class="tab" data-tab="restarts" onclick="switchTab(this)">&#128260; Node Restarts</div>
+          <div class="tab" data-tab="failover" onclick="switchTab(this)">&#128257; Failover</div>
         </div>
       </div>
       <div class="tab-cat">
@@ -1659,6 +1660,72 @@ kbd{display:inline-flex;align-items:center;padding:1px 5px;border-radius:4px;fon
       </div>
     </div>
 
+    <!-- Failover -->
+    <div class="tab-content" id="tab-failover" style="display:none">
+      <div class="grid g3">
+        <div class="card"><div class="card-header"><span class="card-title">&#127919; Active Node</span></div>
+          <div class="metric-value cyan" id="foActiveNode">-</div>
+          <div class="metric-label" id="foActiveLabel">Checking...</div></div>
+        <div class="card"><div class="card-header"><span class="card-title">&#128994; Primary Health</span></div>
+          <div class="metric-value" id="foPrimaryHealth">-</div>
+          <div class="metric-label" id="foPrimaryDetail">-</div></div>
+        <div class="card"><div class="card-header"><span class="card-title">&#128309; Failover Health</span></div>
+          <div class="metric-value" id="foFailoverHealth">-</div>
+          <div class="metric-label" id="foFailoverDetail">-</div></div>
+      </div>
+
+      <div class="grid g2" style="margin-top:16px">
+        <!-- Failover Controls -->
+        <div class="card">
+          <div class="card-header"><span class="card-title">&#9889; Controls</span></div>
+          <div style="padding:16px;display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+              <button onclick="foActivate()" id="foActivateBtn" style="padding:8px 18px;background:var(--warning);color:#000;font-weight:600">&#9888; Activate Failover</button>
+              <button onclick="foDeactivate()" id="foDeactivateBtn" style="padding:8px 18px;background:var(--accent);font-weight:600">&#8635; Return to Primary</button>
+              <button onclick="foTestConnection()" style="padding:8px 18px">&#128268; Test Connection</button>
+              <button onclick="foHealthCheck()" style="padding:8px 18px">&#128154; Health Check</button>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+              <button onclick="foRemoteStart()" style="padding:6px 14px;font-size:12px">&#9654; Remote Start</button>
+              <button onclick="foRemoteStop()" style="padding:6px 14px;font-size:12px">&#9632; Remote Stop</button>
+              <button onclick="foRunCmd()" style="padding:6px 14px;font-size:12px">&#128187; Run Command</button>
+            </div>
+            <div id="foTestResult" style="display:none;padding:12px;border-radius:8px;background:var(--surface2);font-size:13px;white-space:pre-wrap"></div>
+          </div>
+        </div>
+
+        <!-- Failover Config -->
+        <div class="card">
+          <div class="card-header"><span class="card-title">&#9881; Configuration</span></div>
+          <div style="padding:16px">
+            <div class="param-grid" style="gap:10px">
+              <div class="param-item"><span class="param-label">Host</span><input id="foCfgHost" placeholder="192.168.1.100" style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text1)"></div>
+              <div class="param-item"><span class="param-label">Port</span><input id="foCfgPort" type="number" value="22" style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text1)"></div>
+              <div class="param-item"><span class="param-label">Username</span><input id="foCfgUser" value="root" style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text1)"></div>
+              <div class="param-item"><span class="param-label">SSH Key Path</span><input id="foCfgKey" placeholder="/root/.ssh/id_rsa" style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text1)"></div>
+              <div class="param-item"><span class="param-label">Remote hyved Path</span><input id="foCfgHyvedPath" placeholder="/usr/local/bin/hyved" style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text1)"></div>
+              <div class="param-item"><span class="param-label">Remote hyved Home</span><input id="foCfgHyvedHome" placeholder="$HOME/.hyved" style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text1)"></div>
+              <div class="param-item"><span class="param-label">Remote RPC Port</span><input id="foCfgRpcPort" type="number" value="26657" style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text1)"></div>
+              <div class="param-item"><span class="param-label">Health Check Interval (s)</span><input id="foCfgInterval" type="number" value="30" style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text1)"></div>
+              <div class="param-item"><span class="param-label">Max Failures Before Auto</span><input id="foCfgMaxFail" type="number" value="3" style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text1)"></div>
+              <div class="param-item" style="display:flex;align-items:center;gap:10px"><label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="foCfgAutoFailover"><span class="param-label" style="margin:0">Auto-Failover</span></label></div>
+              <div class="param-item" style="display:flex;align-items:center;gap:10px"><label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="foCfgEnabled"><span class="param-label" style="margin:0">Enabled</span></label></div>
+            </div>
+            <button onclick="foSaveConfig()" style="margin-top:14px;padding:8px 20px;font-weight:600">&#128190; Save Config</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Failover Event History -->
+      <div class="card" style="padding:0;margin-top:16px">
+        <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+          <span class="card-title">&#128203; Failover Event Log</span>
+          <button onclick="loadFailoverHistory()" style="padding:5px 14px;font-size:11px">&#8635; Refresh</button>
+        </div>
+        <div style="overflow-x:auto"><table><thead><tr><th>Time</th><th>Event</th><th>From</th><th>To</th><th>Details</th><th>Status</th></tr></thead><tbody id="foHistTable"><tr><td colspan="6" style="text-align:center;color:var(--text3)">Loading...</td></tr></tbody></table></div>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -1830,6 +1897,7 @@ function switchTab(el){
   if(el.dataset.tab==='peerhistory') loadPeerHistory();
   if(el.dataset.tab==='alerthistory') loadAlertHistory();
   if(el.dataset.tab==='restarts') loadRestarts();
+  if(el.dataset.tab==='failover') loadFailover();
 }
 
 // ── Chart Setup ──
@@ -3918,6 +3986,150 @@ async function loadRestarts(){
       return'<tr><td style="font-size:11px">'+ts+'</td><td class="mono">'+e.pid+'</td><td class="mono">'+e.prev_pid+'</td><td>'+uptime+'</td><td>'+escapeHtml(e.reason||'')+'</td></tr>';
     }).join('');
   }catch(e){console.error('loadRestarts',e);}
+}
+
+// ── Failover ──
+async function loadFailover(){
+  try{
+    const r=await fetch('/api/failover/status');const d=await r.json();
+    var cfg=d.config||{},st=d.state||{};
+    // Status cards
+    var an=st.active_node||'primary';
+    document.getElementById('foActiveNode').textContent=an.charAt(0).toUpperCase()+an.slice(1);
+    document.getElementById('foActiveNode').className='metric-value '+(an==='primary'?'cyan':'warning');
+    document.getElementById('foActiveLabel').textContent=st.last_check?'Last check: '+new Date(st.last_check).toLocaleString():'No checks yet';
+    document.getElementById('foPrimaryHealth').textContent=st.primary_healthy?'Healthy':'Unhealthy';
+    document.getElementById('foPrimaryHealth').className='metric-value '+(st.primary_healthy?'green':'red');
+    document.getElementById('foPrimaryDetail').textContent='Failures: '+(st.consecutive_failures||0);
+    var foAvail=st.failover_available;
+    document.getElementById('foFailoverHealth').textContent=foAvail?(st.failover_healthy?'Healthy':'Syncing'):'Offline';
+    document.getElementById('foFailoverHealth').className='metric-value '+(st.failover_healthy?'green':(foAvail?'warning':'red'));
+    document.getElementById('foFailoverDetail').textContent=cfg.host?cfg.host+':'+cfg.port:'Not configured';
+    // Update buttons
+    document.getElementById('foActivateBtn').disabled=(an==='failover');
+    document.getElementById('foDeactivateBtn').disabled=(an==='primary');
+    // Fill config form
+    document.getElementById('foCfgHost').value=cfg.host||'';
+    document.getElementById('foCfgPort').value=cfg.port||22;
+    document.getElementById('foCfgUser').value=cfg.username||'root';
+    document.getElementById('foCfgKey').value=(cfg.ssh_key_path==='***configured***'?'':cfg.ssh_key_path)||'';
+    document.getElementById('foCfgHyvedPath').value=cfg.remote_hyved_path||'';
+    document.getElementById('foCfgHyvedHome').value=cfg.remote_hyved_home||'';
+    document.getElementById('foCfgRpcPort').value=cfg.remote_rpc_port||26657;
+    document.getElementById('foCfgInterval').value=cfg.health_check_interval||30;
+    document.getElementById('foCfgMaxFail').value=cfg.max_failures||3;
+    document.getElementById('foCfgAutoFailover').checked=!!cfg.auto_failover;
+    document.getElementById('foCfgEnabled').checked=!!cfg.enabled;
+    if(!d.asyncssh_available){
+      document.getElementById('foTestResult').style.display='block';
+      document.getElementById('foTestResult').textContent='⚠ asyncssh is not installed on the server. Run: pip install asyncssh';
+    }
+    loadFailoverHistory();
+  }catch(e){console.error('loadFailover',e);}
+}
+async function foSaveConfig(){
+  try{
+    var body={host:document.getElementById('foCfgHost').value,port:parseInt(document.getElementById('foCfgPort').value)||22,
+      username:document.getElementById('foCfgUser').value||'root',
+      ssh_key_path:document.getElementById('foCfgKey').value,
+      remote_hyved_path:document.getElementById('foCfgHyvedPath').value,
+      remote_hyved_home:document.getElementById('foCfgHyvedHome').value,
+      remote_rpc_port:parseInt(document.getElementById('foCfgRpcPort').value)||26657,
+      health_check_interval:parseInt(document.getElementById('foCfgInterval').value)||30,
+      max_failures:parseInt(document.getElementById('foCfgMaxFail').value)||3,
+      auto_failover:document.getElementById('foCfgAutoFailover').checked,
+      enabled:document.getElementById('foCfgEnabled').checked};
+    const r=await fetch('/api/failover/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const d=await r.json();
+    if(d.ok)showToast('Failover config saved','success');else showToast(d.error||'Save failed','error');
+    loadFailover();
+  }catch(e){showToast('Failed to save config','error');}
+}
+async function foTestConnection(){
+  var el=document.getElementById('foTestResult');el.style.display='block';el.textContent='Testing connection...';
+  try{
+    const r=await fetch('/api/failover/test',{method:'POST'});const d=await r.json();
+    if(d.ok){
+      var h=d.remote_health||{};
+      el.textContent='✅ SSH Connected\nSystem: '+d.system_info+'\n\nNode Running: '+(h.node_running?'Yes':'No')+
+        '\nSyncing: '+(h.syncing===false?'No (synced)':h.syncing===true?'Yes':'Unknown')+
+        '\nHeight: '+(h.latest_height||'N/A')+'\nPeers: '+(h.peers||0)+
+        '\nReachable: '+(h.reachable?'Yes':'No');
+    }else{el.textContent='❌ Connection Failed\n'+(d.error||'Unknown error');}
+  }catch(e){el.textContent='❌ Error: '+e.message;}
+}
+async function foHealthCheck(){
+  var el=document.getElementById('foTestResult');el.style.display='block';el.textContent='Checking health...';
+  try{
+    const r=await fetch('/api/failover/health');const d=await r.json();
+    var p=d.primary||{},f=d.failover||{};
+    var txt='Active: '+d.active_node+'\n\n── Primary ──\nRunning: '+(p.node_running?'Yes':'No')+
+      '\nSyncing: '+(p.syncing===false?'No':'Yes')+'\nHeight: '+(p.latest_height||0)+'\nPeers: '+(p.peers||0)+
+      '\n\n── Failover ──\nReachable: '+(f.reachable?'Yes':'No')+'\nRunning: '+(f.node_running?'Yes':'No')+
+      '\nSyncing: '+(f.syncing===false?'No (synced)':f.syncing===true?'Yes':'Unknown')+'\nHeight: '+(f.latest_height||0)+'\nPeers: '+(f.peers||0);
+    el.textContent=txt;
+  }catch(e){el.textContent='❌ Error: '+e.message;}
+}
+async function foActivate(){
+  if(!confirm('⚠ This will STOP the primary node and START the failover node. Continue?'))return;
+  var el=document.getElementById('foTestResult');el.style.display='block';el.textContent='Activating failover...';
+  try{
+    const r=await fetch('/api/failover/activate',{method:'POST'});const d=await r.json();
+    if(d.ok){showToast('Failover activated','warning');el.textContent='✅ Failover activated. Active: '+d.active_node;}
+    else{showToast(d.error||'Activation failed','error');el.textContent='❌ '+(d.error||'Failed');}
+    loadFailover();
+  }catch(e){el.textContent='❌ Error: '+e.message;}
+}
+async function foDeactivate(){
+  if(!confirm('This will STOP the failover node and restart the primary. Continue?'))return;
+  var el=document.getElementById('foTestResult');el.style.display='block';el.textContent='Returning to primary...';
+  try{
+    const r=await fetch('/api/failover/deactivate',{method:'POST'});const d=await r.json();
+    if(d.ok){showToast('Returned to primary','success');el.textContent='✅ Primary restored. Active: '+d.active_node;}
+    else{showToast(d.error||'Deactivation failed','error');el.textContent='❌ '+(d.error||'Failed');}
+    loadFailover();
+  }catch(e){el.textContent='❌ Error: '+e.message;}
+}
+async function foRemoteStart(){
+  try{
+    const r=await fetch('/api/failover/remote/start',{method:'POST'});const d=await r.json();
+    var el=document.getElementById('foTestResult');el.style.display='block';
+    el.textContent=d.ok?'✅ Remote node start issued':'❌ '+(d.error||'Failed');
+    if(d.ok)showToast('Remote start sent','success');
+  }catch(e){showToast('Remote start failed','error');}
+}
+async function foRemoteStop(){
+  if(!confirm('Stop the remote node process?'))return;
+  try{
+    const r=await fetch('/api/failover/remote/stop',{method:'POST'});const d=await r.json();
+    var el=document.getElementById('foTestResult');el.style.display='block';
+    el.textContent=d.ok?'✅ Remote node stopped':'❌ '+(d.error||'Failed');
+    if(d.ok)showToast('Remote stop sent','success');
+  }catch(e){showToast('Remote stop failed','error');}
+}
+async function foRunCmd(){
+  var cmd=prompt('Enter command to run on failover node:\n(Allowed: uname, uptime, free, df, ps aux, systemctl status, tail, ls, hostname, etc.)');
+  if(!cmd)return;
+  var el=document.getElementById('foTestResult');el.style.display='block';el.textContent='Running: '+cmd+'...';
+  try{
+    const r=await fetch('/api/failover/remote/cmd',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cmd:cmd})});
+    const d=await r.json();
+    if(d.ok){el.textContent='$ '+cmd+'\n\n'+d.stdout+(d.stderr?'\n\nSTDERR: '+d.stderr:'');}
+    else{el.textContent='❌ '+(d.error||'Command failed');}
+  }catch(e){el.textContent='❌ Error: '+e.message;}
+}
+async function loadFailoverHistory(){
+  try{
+    const r=await fetch('/api/failover/history');const d=await r.json();
+    var tb=document.getElementById('foHistTable');
+    var events=d.events||[];
+    if(!events.length){tb.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--text3)">No failover events recorded</td></tr>';return;}
+    tb.innerHTML=events.map(function(e){
+      var ts=e.ts?new Date(e.ts).toLocaleString():'';
+      var badge=e.success?'<span style="color:var(--green)">&#10003;</span>':'<span style="color:var(--red)">&#10007;</span>';
+      return'<tr><td style="font-size:11px">'+ts+'</td><td>'+escapeHtml(e.event_type||'')+'</td><td>'+escapeHtml(e.source_node||'')+'</td><td>'+escapeHtml(e.target_node||'')+'</td><td style="font-size:11px;max-width:300px;overflow:hidden;text-overflow:ellipsis">'+escapeHtml(e.details||'')+'</td><td>'+badge+'</td></tr>';
+    }).join('');
+  }catch(e){console.error('loadFailoverHistory',e);}
 }
 
 function renderPinnedBar(){

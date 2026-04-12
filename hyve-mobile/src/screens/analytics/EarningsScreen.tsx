@@ -18,15 +18,15 @@ export function EarningsScreen() {
 
   const delegated = staking?.delegated || 0;
   const apr = data.apr || 0;
-  const daily = (delegated * apr) / 365;
+  const daily = (delegated * (apr / 100)) / 365;
   const monthly = daily * 30;
-  const yearly = delegated * apr;
+  const yearly = delegated * (apr / 100);
 
   return (
-    <ScreenContainer>
+    <ScreenContainer onRefresh={reload}>
       <Card title="Earnings Projector" icon="🧮">
         <View style={styles.row}>
-          <MetricCard label="APR" value={`${(apr * 100).toFixed(2)}%`} color={colors.cyan} />
+          <MetricCard label="APR" value={`${apr.toFixed(2)}%`} color={colors.cyan} />
           <MetricCard label="Delegated" value={fmtHyve(delegated, 2)} color={colors.green} sub="HYVE" />
         </View>
       </Card>
@@ -43,7 +43,7 @@ export function EarningsScreen() {
 
       <Card title="Network Stats" icon="🌐">
         <View style={styles.row}>
-          <MetricCard label="Inflation" value={`${((data.inflation || 0) * 100).toFixed(2)}%`} />
+          <MetricCard label="Inflation" value={`${(data.inflation || 0).toFixed(2)}%`} />
           <MetricCard label="Bonded" value={fmtHyve(data.bonded_tokens || 0, 0)} sub="HYVE" />
         </View>
       </Card>

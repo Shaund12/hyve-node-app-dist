@@ -1,5 +1,5 @@
-import React from 'react';
-import {View, ActivityIndicator, Text, StyleSheet, ScrollView} from 'react-native';
+import React, {useState, useCallback} from 'react';
+import {View, ActivityIndicator, Text, StyleSheet, ScrollView, RefreshControl} from 'react-native';
 import {colors} from '../utils/theme';
 
 export function LoadingView({message}: {message?: string} = {}) {
@@ -24,12 +24,34 @@ export function ErrorView({message, onRetry}: {message: string; onRetry?: () => 
   );
 }
 
-export function ScreenContainer({children, onRefresh}: {children: React.ReactNode; onRefresh?: () => void}) {
+export function ScreenContainer({children, onRefresh}: {children: React.ReactNode; onRefresh?: () => void | Promise<void>}) {
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = useCallback(async () => {
+    if (!onRefresh) return;
+    setRefreshing(true);
+    try {
+      await onRefresh();
+    } catch {}
+    setRefreshing(false);
+  }, [onRefresh]);
+
   return (
     <ScrollView
       style={styles.screen}
       contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}>
+      showsVerticalScrollIndicator={false}
+      refreshControl={
+        onRefresh ? (
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={colors.cyan}
+            colors={[colors.cyan]}
+            progressBackgroundColor={colors.bg3}
+          />
+        ) : undefined
+      }>
       {children}
     </ScrollView>
   );

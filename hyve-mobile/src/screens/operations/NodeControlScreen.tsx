@@ -15,6 +15,7 @@ export function NodeControlScreen() {
   const {data, loading, error, reload} = useApi<any>('/api/status', 5000);
   const {data: system} = useApi<any>('/api/system', 10000);
   const {data: disk} = useApi<any>('/api/disk-forecast');
+  const {data: restarts} = useApi<any>('/api/node-restarts');
   const [acting, setActing] = useState(false);
 
   if (loading && !data) return <LoadingView />;
@@ -45,7 +46,7 @@ export function NodeControlScreen() {
   };
 
   return (
-    <ScreenContainer>
+    <ScreenContainer onRefresh={reload}>
       <Card title="Node Process" icon="🖥">
         <View style={styles.row}>
           <Badge label={data.running ? 'Running' : 'Stopped'} severity={data.running ? 'success' : 'error'} />
@@ -83,10 +84,23 @@ export function NodeControlScreen() {
           </View>
         </Card>
       )}
+
+      {restarts?.restarts?.length > 0 && (
+        <Card title={`Restart History (${restarts.restarts.length})`} icon="🔄">
+          {restarts.restarts.slice(0, 15).map((r: any, i: number) => (
+            <View key={i} style={styles.restartRow}>
+              <Badge label={r.restart_type || 'restart'} severity={r.restart_type === 'crash' ? 'error' : 'info'} />
+              <Text style={styles.restartTime}>{r.ts ? new Date(r.ts).toLocaleString() : '—'}</Text>
+            </View>
+          ))}
+        </Card>
+      )}
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
   row: {flexDirection: 'row', gap: 12},
+  restartRow: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: colors.border},
+  restartTime: {color: colors.text3, fontSize: 11},
 });

@@ -2,6 +2,7 @@ import React, {useState} from 'react';
 import {View, Text, TextInput, FlatList, StyleSheet, Alert, TouchableOpacity} from 'react-native';
 import {ScreenContainer} from '../../components/Layout';
 import {Card} from '../../components/Card';
+import {Badge} from '../../components/Badge';
 import {Button} from '../../components/Button';
 import {colors} from '../../utils/theme';
 import {useApi} from '../../hooks/useApi';
@@ -12,8 +13,9 @@ interface Note {
   id: number;
   title: string;
   content: string;
-  created_at: string;
-  updated_at: string;
+  ts: string;
+  category?: string;
+  pinned?: boolean;
 }
 
 export function NotesScreen() {
@@ -45,10 +47,10 @@ export function NotesScreen() {
     setSaving(true);
     try {
       if (editing) {
-        await api.post(`/api/notes/${editing.id}`, {title, content});
-      } else {
-        await api.post('/api/notes', {title, content});
+        // No update endpoint — delete old and create new
+        await api.del(`/api/notes/${editing.id}`);
       }
+      await api.post('/api/notes', {title, content});
       setTitle('');
       setContent('');
       setEditing(null);
@@ -76,8 +78,17 @@ export function NotesScreen() {
     ]);
   };
 
+  const togglePin = async (n: Note) => {
+    try {
+      await api.patch(`/api/notes/${n.id}/pin`);
+      reload();
+    } catch {}
+  };
+
+  const sortedNotes = [...notes].sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+
   return (
-    <ScreenContainer>
+    <ScreenContainer onRefresh={reload}>
       <Card title={editing ? 'Edit Note' : 'New Note'} icon="📝">
         <TextInput
           style={styles.input}
@@ -104,18 +115,25 @@ export function NotesScreen() {
         </View>
       </Card>
 
-      {notes.length === 0 ? (
+      {sortedNotes.length === 0 ? (
         <Card title="Notes" icon="📋">
           <Text style={styles.empty}>No notes yet</Text>
         </Card>
       ) : (
-        notes.map(n => (
+        sortedNotes.map(n => (
           <TouchableOpacity key={n.id} onPress={() => startEdit(n)} onLongPress={() => deleteNote(n)}>
-            <Card title={n.title} icon="📄">
+            <Card title={n.title} icon="📄" right={
+              <View style={{flexDirection: 'row', gap: 8, alignItems: 'center'}}>
+                {n.pinned && <Badge label="Pinned" severity="info" />}
+                <TouchableOpacity onPress={() => togglePin(n)}>
+                  <Text style={{fontSize: 16}}>{n.pinned ? '📌' : '📍'}</Text>
+                </TouchableOpacity>
+              </View>
+            }>
               <Text style={styles.noteContent} numberOfLines={3}>
                 {n.content}
               </Text>
-              <Text style={styles.timestamp}>Updated {timeAgo(n.updated_at)}</Text>
+              <Text style={styles.timestamp}>{n.ts ? timeAgo(n.ts) : ''}</Text>
             </Card>
           </TouchableOpacity>
         ))

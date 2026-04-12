@@ -17,7 +17,7 @@ export function TxHistoryScreen() {
   const txs = data?.transactions || [];
 
   return (
-    <ScreenContainer>
+    <ScreenContainer onRefresh={reload}>
       <Card title={`Transactions (${txs.length})`} icon="📄">
         {txs.map((tx: any, i: number) => (
           <View key={i} style={styles.txRow}>
@@ -30,7 +30,7 @@ export function TxHistoryScreen() {
               <Text style={[styles.txCode, {color: tx.code === 0 ? colors.green : colors.red}]}>
                 {tx.code === 0 ? '✓' : '✗'}
               </Text>
-              <Text style={styles.txTime}>{new Date(tx.timestamp).toLocaleDateString()}</Text>
+              <Text style={styles.txTime}>{new Date(tx.timestamp).toISOString().split('T')[0]}</Text>
             </View>
           </View>
         ))}

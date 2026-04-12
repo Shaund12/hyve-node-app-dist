@@ -9,7 +9,7 @@ import {useApi} from '../../hooks/useApi';
 import {fmt} from '../../utils/format';
 
 export function RankHistoryScreen() {
-  const {data} = useApi<any>('/api/rank-history');
+  const {data, reload} = useApi<any>('/api/rank-history');
   const snapshots = data?.history || [];
   const current = snapshots.length > 0 ? snapshots[snapshots.length - 1] : null;
   const prev = snapshots.length > 1 ? snapshots[snapshots.length - 2] : null;
@@ -17,7 +17,7 @@ export function RankHistoryScreen() {
   const rankDelta = current && prev ? prev.rank - current.rank : 0;
 
   return (
-    <ScreenContainer>
+    <ScreenContainer onRefresh={reload}>
       {current && (
         <Card title="Current Rank" icon="🏆">
           <View style={styles.row}>
