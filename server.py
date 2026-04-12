@@ -76,6 +76,9 @@ _discord_config = {"webhook_url": "", "enabled": False}
 _last_notified = {}  # type -> timestamp, to avoid spam
 _auto_compound_config = {"enabled": False, "threshold": 10.0, "interval_hours": 24}
 _whale_threshold = 1000  # HYVE
+_last_hyved_pid = None  # For node restart detection
+_last_known_valset = set()  # For validator set change tracking
+_last_known_delegators = {}  # For delegation change tracking
 _rank_history = deque(maxlen=720)  # ~30 days at 1/hour
 
 
@@ -528,6 +531,64 @@ async def _db_ensure_tables():
             delegator_count INT
         )""")
     await db_pool.execute("CREATE INDEX IF NOT EXISTS idx_rank_ts ON rank_history(ts DESC)")
+    # ── New tracking tables ──
+    await db_pool.execute("""
+        CREATE TABLE IF NOT EXISTS delegation_events (
+            id BIGSERIAL PRIMARY KEY, ts TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            event TEXT NOT NULL, delegator TEXT, amount DOUBLE PRECISION,
+            validator TEXT, tx_hash TEXT
+        )""")
+    await db_pool.execute("CREATE INDEX IF NOT EXISTS idx_deleg_ts ON delegation_events(ts DESC)")
+    await db_pool.execute("""
+        CREATE TABLE IF NOT EXISTS network_snapshots (
+            id BIGSERIAL PRIMARY KEY, ts TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            total_supply DOUBLE PRECISION, bonded_tokens DOUBLE PRECISION,
+            bonded_ratio DOUBLE PRECISION, inflation DOUBLE PRECISION,
+            active_validators INT, avg_block_time DOUBLE PRECISION,
+            avg_commission DOUBLE PRECISION
+        )""")
+    await db_pool.execute("CREATE INDEX IF NOT EXISTS idx_netsn_ts ON network_snapshots(ts DESC)")
+    await db_pool.execute("""
+        CREATE TABLE IF NOT EXISTS validator_set_changes (
+            id BIGSERIAL PRIMARY KEY, ts TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            event TEXT NOT NULL, moniker TEXT, valoper TEXT,
+            tokens DOUBLE PRECISION, rank INT
+        )""")
+    await db_pool.execute("CREATE INDEX IF NOT EXISTS idx_valset_ts ON validator_set_changes(ts DESC)")
+    await db_pool.execute("""
+        CREATE TABLE IF NOT EXISTS alert_history (
+            id BIGSERIAL PRIMARY KEY, ts TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            alert_type TEXT NOT NULL, severity TEXT NOT NULL,
+            message TEXT, value DOUBLE PRECISION,
+            notified BOOLEAN DEFAULT FALSE
+        )""")
+    await db_pool.execute("CREATE INDEX IF NOT EXISTS idx_alerthist_ts ON alert_history(ts DESC)")
+    await db_pool.execute("""
+        CREATE TABLE IF NOT EXISTS node_restarts (
+            id BIGSERIAL PRIMARY KEY, ts TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            pid INT, prev_pid INT, uptime_before TEXT,
+            reason TEXT DEFAULT 'detected'
+        )""")
+    await db_pool.execute("CREATE INDEX IF NOT EXISTS idx_noderestart_ts ON node_restarts(ts DESC)")
+    await db_pool.execute("""
+        CREATE TABLE IF NOT EXISTS peer_history (
+            id BIGSERIAL PRIMARY KEY, ts TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            peer_count INT, peer_ids TEXT[]
+        )""")
+    await db_pool.execute("CREATE INDEX IF NOT EXISTS idx_peerhist_ts ON peer_history(ts DESC)")
+    await db_pool.execute("""
+        CREATE TABLE IF NOT EXISTS block_time_history (
+            id BIGSERIAL PRIMARY KEY, ts TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            avg_block_time DOUBLE PRECISION, height_start BIGINT, height_end BIGINT
+        )""")
+    await db_pool.execute("CREATE INDEX IF NOT EXISTS idx_blocktime_ts ON block_time_history(ts DESC)")
+    await db_pool.execute("""
+        CREATE TABLE IF NOT EXISTS governance_votes (
+            id BIGSERIAL PRIMARY KEY, ts TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            proposal_id INT NOT NULL, proposal_title TEXT,
+            vote_option TEXT, tx_hash TEXT
+        )""")
+    await db_pool.execute("CREATE INDEX IF NOT EXISTS idx_govvote_ts ON governance_votes(ts DESC)")
 
 async def _db_save_config(key: str, value: dict):
     if not db_pool:
@@ -1022,7 +1083,16 @@ class VoteRequest(BaseModel):
 
 @app.post("/api/tx/vote")
 async def cast_vote(req: VoteRequest):
-    return run_hyved_tx(["tx", "gov", "vote", req.proposal_id, req.option, "--from", "validator-operator"])
+    result = run_hyved_tx(["tx", "gov", "vote", req.proposal_id, req.option, "--from", "validator-operator"])
+    if result.get("ok") and db_pool:
+        try:
+            await db_pool.execute(
+                "INSERT INTO governance_votes (proposal_id, proposal_title, vote_option, tx_hash) VALUES ($1,$2,$3,$4)",
+                req.proposal_id, "", req.option, result.get("result", {}).get("txhash", ""),
+            )
+        except Exception:
+            pass
+    return result
 
 
 # ── API: Delegators ─────────────────────────────────────────────────────────
@@ -1284,6 +1354,7 @@ async def get_alerts():
             if now - _last_notified.get(key, 0) > 300:  # 5-min cooldown
                 _last_notified[key] = now
                 asyncio.create_task(_send_notifications(a))
+                asyncio.create_task(_record_alert_to_db(a))
     return {"alerts": alerts}
 
 
@@ -1314,6 +1385,89 @@ async def get_rpc_metrics():
     else:
         result["totals"] = {"hour": len(_rpc_buffer), "day": len(_rpc_buffer)}
     return result
+
+
+# ── API: Tracking Data ──────────────────────────────────────────────────────
+@app.get("/api/delegation-events")
+async def api_delegation_events(limit: int = 100):
+    if not db_pool:
+        return {"events": []}
+    rows = await db_pool.fetch(
+        "SELECT id, ts, event, delegator, amount, validator, tx_hash FROM delegation_events ORDER BY ts DESC LIMIT $1", limit
+    )
+    return {"events": [dict(r) for r in rows]}
+
+
+@app.get("/api/network-snapshots")
+async def api_network_snapshots(hours: int = 168):
+    if not db_pool:
+        return {"snapshots": []}
+    rows = await db_pool.fetch(
+        "SELECT id, ts, total_supply, bonded_tokens, bonded_ratio, inflation, active_validators, avg_block_time, avg_commission "
+        "FROM network_snapshots WHERE ts > NOW() - make_interval(hours => $1) ORDER BY ts", hours
+    )
+    return {"snapshots": [dict(r) for r in rows]}
+
+
+@app.get("/api/validator-set-changes")
+async def api_validator_set_changes(limit: int = 100):
+    if not db_pool:
+        return {"changes": []}
+    rows = await db_pool.fetch(
+        "SELECT id, ts, event, moniker, valoper, tokens, rank FROM validator_set_changes ORDER BY ts DESC LIMIT $1", limit
+    )
+    return {"changes": [dict(r) for r in rows]}
+
+
+@app.get("/api/alert-history")
+async def api_alert_history(limit: int = 200):
+    if not db_pool:
+        return {"alerts": []}
+    rows = await db_pool.fetch(
+        "SELECT id, ts, alert_type, severity, message, value, notified FROM alert_history ORDER BY ts DESC LIMIT $1", limit
+    )
+    return {"alerts": [dict(r) for r in rows]}
+
+
+@app.get("/api/node-restarts")
+async def api_node_restarts(limit: int = 50):
+    if not db_pool:
+        return {"restarts": []}
+    rows = await db_pool.fetch(
+        "SELECT id, ts, pid, prev_pid, uptime_before, reason FROM node_restarts ORDER BY ts DESC LIMIT $1", limit
+    )
+    return {"restarts": [dict(r) for r in rows]}
+
+
+@app.get("/api/peer-history")
+async def api_peer_history(hours: int = 168):
+    if not db_pool:
+        return {"history": []}
+    rows = await db_pool.fetch(
+        "SELECT id, ts, peer_count, peer_ids FROM peer_history WHERE ts > NOW() - make_interval(hours => $1) ORDER BY ts", hours
+    )
+    return {"history": [dict(r) for r in rows]}
+
+
+@app.get("/api/block-time-history")
+async def api_block_time_history(hours: int = 168):
+    if not db_pool:
+        return {"history": []}
+    rows = await db_pool.fetch(
+        "SELECT id, ts, avg_block_time, height_start, height_end FROM block_time_history "
+        "WHERE ts > NOW() - make_interval(hours => $1) ORDER BY ts", hours
+    )
+    return {"history": [dict(r) for r in rows]}
+
+
+@app.get("/api/governance-votes")
+async def api_governance_votes(limit: int = 50):
+    if not db_pool:
+        return {"votes": []}
+    rows = await db_pool.fetch(
+        "SELECT id, ts, proposal_id, proposal_title, vote_option, tx_hash FROM governance_votes ORDER BY ts DESC LIMIT $1", limit
+    )
+    return {"votes": [dict(r) for r in rows]}
 
 
 # ── TX Endpoints ─────────────────────────────────────────────────────────────
@@ -1873,6 +2027,13 @@ async def _periodic_discord_loop():
             await _record_rank_snapshot()
             # Auto-compound check
             await _check_auto_compound()
+            # ── Hourly tracking ──
+            await _record_network_snapshot()
+            await _track_validator_set_changes()
+            await _track_delegation_changes()
+            await _detect_node_restart()
+            await _record_peer_snapshot()
+            await _record_block_time()
         except Exception:
             pass
         await asyncio.sleep(3600)  # 1 hour
@@ -1893,6 +2054,214 @@ async def _record_rank_snapshot():
             ours.get("rank", 0), ours.get("stake", 0),
             benchmarks.get("network", {}).get("total_validators", 0),
             delegators.get("count", 0),
+        )
+    except Exception:
+        pass
+
+
+async def _autonomous_metrics_record():
+    """Background task: record metrics every 2 minutes regardless of WS clients."""
+    await asyncio.sleep(30)  # Stagger from other startup tasks
+    while True:
+        try:
+            if db_pool:
+                status, staking, signing, shade = await asyncio.gather(
+                    get_status(), get_staking(), get_signing(), get_shade()
+                )
+                record = {
+                    "height": (status or {}).get("sync", {}).get("latest_block_height", 0),
+                    "peers": (status or {}).get("peers", {}).get("count", 0),
+                    "rewards": (staking or {}).get("pending_rewards", 0),
+                    "commission": (staking or {}).get("pending_commission", 0),
+                    "delegated": (staking or {}).get("delegated", 0),
+                    "available": (staking or {}).get("available", 0),
+                    "memory_mb": (status or {}).get("process", {}).get("memory_mb", 0),
+                    "cpu_pct": (status or {}).get("process", {}).get("cpu_percent", 0),
+                    "uptime_pct": (signing or {}).get("uptime_pct", 0),
+                    "shade_balance": (shade or {}).get("balance", 0),
+                    "shade_pending": (shade or {}).get("pending_reward", 0),
+                    "disk_pct": (status or {}).get("disk", {}).get("pct", 0),
+                    "load_avg": os.getloadavg()[0],
+                }
+                await _db_record_metrics(record)
+        except Exception:
+            pass
+        await asyncio.sleep(120)  # 2 minutes
+
+
+async def _detect_node_restart():
+    """Check if hyved PID changed and log restart."""
+    global _last_hyved_pid
+    if not db_pool:
+        return
+    try:
+        import psutil
+        current_pid = None
+        for proc in psutil.process_iter(["pid", "name", "cmdline"]):
+            try:
+                if "hyved" in (proc.info.get("name") or "") or any("hyved" in (c or "") for c in (proc.info.get("cmdline") or [])):
+                    current_pid = proc.info["pid"]
+                    break
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+        if current_pid and _last_hyved_pid and current_pid != _last_hyved_pid:
+            await db_pool.execute(
+                "INSERT INTO node_restarts (pid, prev_pid, reason) VALUES ($1, $2, $3)",
+                current_pid, _last_hyved_pid, "pid_change_detected",
+            )
+        _last_hyved_pid = current_pid
+    except Exception:
+        pass
+
+
+async def _record_peer_snapshot():
+    """Record peer count and peer IDs."""
+    if not db_pool:
+        return
+    try:
+        net_info = await rpc_call("net_info")
+        if not net_info:
+            return
+        peers = net_info.get("result", {}).get("peers", [])
+        peer_ids = [p.get("node_info", {}).get("id", "") for p in peers if p.get("node_info", {}).get("id")]
+        await db_pool.execute(
+            "INSERT INTO peer_history (peer_count, peer_ids) VALUES ($1, $2)",
+            len(peers), peer_ids,
+        )
+    except Exception:
+        pass
+
+
+async def _record_block_time():
+    """Record average block time over the last ~50 blocks."""
+    if not db_pool:
+        return
+    try:
+        status_data = await rpc_call("status")
+        if not status_data:
+            return
+        latest_height = int(status_data["result"]["sync_info"]["latest_block_height"])
+        start_height = max(1, latest_height - 50)
+        block_1, block_2 = await asyncio.gather(
+            rpc_call(f"block?height={latest_height}"),
+            rpc_call(f"block?height={start_height}"),
+        )
+        if block_1 and block_2:
+            t1 = datetime.fromisoformat(block_1["result"]["block"]["header"]["time"].replace("Z", "+00:00"))
+            t2 = datetime.fromisoformat(block_2["result"]["block"]["header"]["time"].replace("Z", "+00:00"))
+            diff = (t1 - t2).total_seconds()
+            blocks = latest_height - start_height
+            if blocks > 0:
+                avg_bt = round(diff / blocks, 3)
+                await db_pool.execute(
+                    "INSERT INTO block_time_history (avg_block_time, height_start, height_end) VALUES ($1, $2, $3)",
+                    avg_bt, start_height, latest_height,
+                )
+    except Exception:
+        pass
+
+
+async def _record_network_snapshot():
+    """Record network-wide metrics: supply, bonded ratio, inflation, etc."""
+    if not db_pool:
+        return
+    try:
+        net = await get_network()
+        if not net:
+            return
+        await db_pool.execute(
+            "INSERT INTO network_snapshots (total_supply, bonded_tokens, bonded_ratio, inflation, active_validators, avg_block_time, avg_commission) VALUES ($1,$2,$3,$4,$5,$6,$7)",
+            net.get("total_supply", 0), net.get("bonded_tokens", 0),
+            net.get("bonded_ratio", 0), net.get("inflation", 0),
+            net.get("active_validators", 0), net.get("avg_block_time", 0),
+            net.get("avg_commission", 0),
+        )
+    except Exception:
+        pass
+
+
+async def _track_validator_set_changes():
+    """Detect validators joining/leaving the active set."""
+    global _last_known_valset
+    if not db_pool:
+        return
+    try:
+        vals_data = await rest_call("/cosmos/staking/v1beta1/validators?status=BOND_STATUS_BONDED&pagination.limit=150")
+        if not vals_data:
+            return
+        current = {}
+        for v in vals_data.get("validators", []):
+            addr = v.get("operator_address", "")
+            current[addr] = {
+                "moniker": v.get("description", {}).get("moniker", ""),
+                "tokens": to_display(v.get("tokens", "0")),
+            }
+        current_set = set(current.keys())
+        if _last_known_valset:
+            joined = current_set - _last_known_valset
+            left = _last_known_valset - current_set
+            for addr in joined:
+                info = current.get(addr, {})
+                rank = sorted(current.keys(), key=lambda a: current[a]["tokens"], reverse=True).index(addr) + 1
+                await db_pool.execute(
+                    "INSERT INTO validator_set_changes (event, moniker, valoper, tokens, rank) VALUES ($1,$2,$3,$4,$5)",
+                    "joined", info.get("moniker", ""), addr, info.get("tokens", 0), rank,
+                )
+            for addr in left:
+                await db_pool.execute(
+                    "INSERT INTO validator_set_changes (event, moniker, valoper, tokens, rank) VALUES ($1,$2,$3,$4,$5)",
+                    "left", "", addr, 0, 0,
+                )
+        _last_known_valset = current_set
+    except Exception:
+        pass
+
+
+async def _track_delegation_changes():
+    """Detect delegator changes (bond/unbond) for our validator."""
+    global _last_known_delegators
+    if not db_pool:
+        return
+    try:
+        op = load_operator_info()
+        valoper = op.get("valoperAddr", "")
+        if not valoper:
+            return
+        data = await rest_call(f"/cosmos/staking/v1beta1/validators/{valoper}/delegations?pagination.limit=500")
+        if not data:
+            return
+        current = {}
+        for d in data.get("delegation_responses", []):
+            addr = d.get("delegation", {}).get("delegator_address", "")
+            amount = to_display(d.get("balance", {}).get("amount", "0"))
+            current[addr] = amount
+        if _last_known_delegators:
+            all_addrs = set(list(current.keys()) + list(_last_known_delegators.keys()))
+            for addr in all_addrs:
+                old_amt = _last_known_delegators.get(addr, 0)
+                new_amt = current.get(addr, 0)
+                diff = new_amt - old_amt
+                if abs(diff) < 0.01:
+                    continue
+                event = "delegate" if diff > 0 else "undelegate"
+                await db_pool.execute(
+                    "INSERT INTO delegation_events (event, delegator, amount, validator) VALUES ($1,$2,$3,$4)",
+                    event, addr, abs(diff), valoper,
+                )
+        _last_known_delegators = current
+    except Exception:
+        pass
+
+
+async def _record_alert_to_db(alert: dict):
+    """Persist a fired alert to alert_history table."""
+    if not db_pool:
+        return
+    try:
+        await db_pool.execute(
+            "INSERT INTO alert_history (alert_type, severity, message, value, notified) VALUES ($1,$2,$3,$4,$5)",
+            alert.get("type", ""), alert.get("severity", ""),
+            alert.get("message", ""), alert.get("value", 0), True,
         )
     except Exception:
         pass
@@ -3044,6 +3413,7 @@ async def startup():
             print(f"PostgreSQL unavailable ({e}), using JSON fallback")
             db_pool = None
     asyncio.create_task(_periodic_discord_loop())
+    asyncio.create_task(_autonomous_metrics_record())
 
 @app.on_event("shutdown")
 async def shutdown():
