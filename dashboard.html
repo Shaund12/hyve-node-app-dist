@@ -6,6 +6,7 @@
 <title>Hyve Validator Dashboard</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%2306b6d4'/><text x='50' y='72' font-size='60' font-weight='900' text-anchor='middle' fill='%2306090f'>H</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.1.0/dist/chartjs-plugin-annotation.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 :root {
@@ -537,6 +538,21 @@ kbd{display:inline-flex;align-items:center;padding:1px 5px;border-radius:4px;fon
 .whale-badge.delegate{background:var(--green-bg);color:var(--green);}
 .whale-badge.undelegate{background:var(--red-bg);color:var(--red);}
 .whale-tag{background:var(--orange-bg);color:var(--orange);padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;margin-left:6px;}
+
+/* ── Tracking Charts ── */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+@media(max-width:900px){.grid-2{grid-template-columns:1fr;}.grid-4{grid-template-columns:repeat(2,1fr);}}
+.mini-stat{padding:14px 16px!important;text-align:center;}
+.mini-stat .stat-label{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;}
+.mini-stat .stat-val{font-size:22px;font-weight:700;color:var(--text);font-family:'JetBrains Mono',monospace;text-shadow:0 0 12px color-mix(in srgb,var(--cyan) 30%,transparent);}
+.mini-stat .stat-delta{font-size:11px;margin-top:3px;font-weight:600;}
+.stat-delta.up{color:var(--green);}
+.stat-delta.down{color:var(--red);}
+.stat-delta.flat{color:var(--text3);}
+.nh-range,.bt-range,.ph-range{padding:4px 12px;font-size:11px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--text2);cursor:pointer;transition:all 0.2s;}
+.nh-range:hover,.bt-range:hover,.ph-range:hover{border-color:var(--cyan);color:var(--cyan);}
+.nh-range.active,.bt-range.active,.ph-range.active{background:rgba(34,211,238,0.12);border-color:var(--cyan);color:var(--cyan);font-weight:600;}
 
 /* ── Pinned Tabs ── */
 .pinned-bar{display:flex;gap:4px;margin-bottom:8px;flex-wrap:wrap;}
@@ -1533,19 +1549,50 @@ kbd{display:inline-flex;align-items:center;padding:1px 5px;border-radius:4px;fon
 
     <!-- Network History -->
     <div class="tab-content" id="tab-nethistory" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <span class="card-title" style="margin:0">&#128202; Network History</span>
+        <div style="display:flex;gap:6px">
+          <button class="nh-range active" onclick="loadNetHistory(24,this)">24h</button>
+          <button class="nh-range" onclick="loadNetHistory(72,this)">3d</button>
+          <button class="nh-range" onclick="loadNetHistory(168,this)">7d</button>
+          <button class="nh-range" onclick="loadNetHistory(720,this)">30d</button>
+        </div>
+      </div>
+      <div class="grid-4" style="margin-bottom:14px">
+        <div class="card mini-stat"><div class="stat-label">Bonded Ratio</div><div class="stat-val" id="nhBondedRatio">-</div><div class="stat-delta" id="nhBondedDelta"></div></div>
+        <div class="card mini-stat"><div class="stat-label">Inflation</div><div class="stat-val" id="nhInflation">-</div><div class="stat-delta" id="nhInflationDelta"></div></div>
+        <div class="card mini-stat"><div class="stat-label">Total Supply</div><div class="stat-val" id="nhSupply">-</div><div class="stat-delta" id="nhSupplyDelta"></div></div>
+        <div class="card mini-stat"><div class="stat-label">Active Validators</div><div class="stat-val" id="nhActiveVals">-</div><div class="stat-delta" id="nhValsDelta"></div></div>
+      </div>
       <div class="grid-2">
-        <div class="card"><div class="card-title">Bonded Ratio Over Time</div><canvas id="bondedRatioChart" height="260"></canvas></div>
-        <div class="card"><div class="card-title">Inflation Over Time</div><canvas id="inflationChart" height="260"></canvas></div>
+        <div class="card" style="position:relative"><div class="card-title">Bonded Ratio %</div><div style="height:260px"><canvas id="bondedRatioChart"></canvas></div></div>
+        <div class="card" style="position:relative"><div class="card-title">Inflation %</div><div style="height:260px"><canvas id="inflationChart"></canvas></div></div>
       </div>
       <div class="grid-2" style="margin-top:12px">
-        <div class="card"><div class="card-title">Total Supply</div><canvas id="supplyChart" height="260"></canvas></div>
-        <div class="card"><div class="card-title">Active Validators</div><canvas id="activeValsChart" height="260"></canvas></div>
+        <div class="card" style="position:relative"><div class="card-title">Total Supply (HYVE)</div><div style="height:260px"><canvas id="supplyChart"></canvas></div></div>
+        <div class="card" style="position:relative"><div class="card-title">Active Validators</div><div style="height:260px"><canvas id="activeValsChart"></canvas></div></div>
       </div>
+      <div class="card" style="margin-top:12px;position:relative"><div class="card-title">Avg Commission %</div><div style="height:220px"><canvas id="commissionHistChart"></canvas></div></div>
     </div>
 
     <!-- Block Times -->
     <div class="tab-content" id="tab-blocktimes" style="display:none">
-      <div class="card"><div class="card-title">&#9201; Average Block Time</div><canvas id="blockTimeChart" height="300"></canvas></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <span class="card-title" style="margin:0">&#9201; Block Time Analytics</span>
+        <div style="display:flex;gap:6px">
+          <button class="bt-range active" onclick="loadBlockTimes(24,this)">24h</button>
+          <button class="bt-range" onclick="loadBlockTimes(72,this)">3d</button>
+          <button class="bt-range" onclick="loadBlockTimes(168,this)">7d</button>
+          <button class="bt-range" onclick="loadBlockTimes(720,this)">30d</button>
+        </div>
+      </div>
+      <div class="grid-4" style="margin-bottom:14px">
+        <div class="card mini-stat"><div class="stat-label">Current Avg</div><div class="stat-val" id="btCurrent">-</div></div>
+        <div class="card mini-stat"><div class="stat-label">Min</div><div class="stat-val" id="btMin" style="color:var(--green)">-</div></div>
+        <div class="card mini-stat"><div class="stat-label">Max</div><div class="stat-val" id="btMax" style="color:var(--red)">-</div></div>
+        <div class="card mini-stat"><div class="stat-label">Std Dev</div><div class="stat-val" id="btStdDev">-</div></div>
+      </div>
+      <div class="card" style="position:relative"><div style="height:320px"><canvas id="blockTimeChart"></canvas></div></div>
     </div>
 
     <!-- Delegation Events Log -->
@@ -1572,7 +1619,22 @@ kbd{display:inline-flex;align-items:center;padding:1px 5px;border-radius:4px;fon
 
     <!-- Peer History -->
     <div class="tab-content" id="tab-peerhistory" style="display:none">
-      <div class="card"><div class="card-title">&#128200; Peer Count Over Time</div><canvas id="peerHistoryChart" height="300"></canvas></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <span class="card-title" style="margin:0">&#128200; Peer Count History</span>
+        <div style="display:flex;gap:6px">
+          <button class="ph-range active" onclick="loadPeerHistory(24,this)">24h</button>
+          <button class="ph-range" onclick="loadPeerHistory(72,this)">3d</button>
+          <button class="ph-range" onclick="loadPeerHistory(168,this)">7d</button>
+          <button class="ph-range" onclick="loadPeerHistory(720,this)">30d</button>
+        </div>
+      </div>
+      <div class="grid-4" style="margin-bottom:14px">
+        <div class="card mini-stat"><div class="stat-label">Current Peers</div><div class="stat-val" id="phCurrent">-</div></div>
+        <div class="card mini-stat"><div class="stat-label">Avg Peers</div><div class="stat-val" id="phAvg">-</div></div>
+        <div class="card mini-stat"><div class="stat-label">Min</div><div class="stat-val" id="phMin" style="color:var(--red)">-</div></div>
+        <div class="card mini-stat"><div class="stat-label">Max</div><div class="stat-val" id="phMax" style="color:var(--green)">-</div></div>
+      </div>
+      <div class="card" style="position:relative"><div style="height:320px"><canvas id="peerHistoryChart"></canvas></div></div>
     </div>
 
     <!-- Alert History -->
@@ -3641,36 +3703,117 @@ async function loadPinnedTabs(){
 
 // ── Network History Charts ──
 var _nhCharts={};
-async function loadNetHistory(){
+async function loadNetHistory(hours,btn){
+  hours=hours||168;
+  if(btn){document.querySelectorAll('.nh-range').forEach(b=>b.classList.remove('active'));btn.classList.add('active');}
   try{
-    const r=await fetch('/api/network-snapshots?hours=168');const d=await r.json();
+    const r=await fetch('/api/network-snapshots?hours='+hours);const d=await r.json();
     var snaps=d.snapshots||[];
-    if(!snaps.length)return;
-    var labels=snaps.map(function(s){return new Date(s.ts).toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});});
-    function makeChart(canvasId,label,dataKey,color){
-      if(_nhCharts[canvasId])_nhCharts[canvasId].destroy();
-      var ctx=document.getElementById(canvasId);if(!ctx)return;
-      _nhCharts[canvasId]=new Chart(ctx,{type:'line',data:{labels:labels,datasets:[{label:label,data:snaps.map(function(s){return s[dataKey]||0;}),borderColor:color,backgroundColor:tcA(color,0.1),fill:true,tension:0.3,pointRadius:1}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{x:{ticks:{maxTicksToShow:8,color:tc('--chart-tick')},grid:{color:tc('--chart-grid')}},y:{ticks:{color:tc('--chart-tick')},grid:{color:tc('--chart-grid')}}}}});
+    if(!snaps.length){
+      document.getElementById('nhBondedRatio').textContent='No data';
+      document.getElementById('nhInflation').textContent='No data';
+      document.getElementById('nhSupply').textContent='No data';
+      document.getElementById('nhActiveVals').textContent='No data';
+      return;
     }
-    makeChart('bondedRatioChart','Bonded Ratio %','bonded_ratio',tc('--cyan')||'#00d4ff');
-    makeChart('inflationChart','Inflation %','inflation',tc('--orange')||'#ff9500');
-    makeChart('supplyChart','Total Supply','total_supply',tc('--purple')||'#b266ff');
-    makeChart('activeValsChart','Active Validators','active_validators',tc('--green')||'#00e676');
+    // Stat cards
+    var last=snaps[snaps.length-1],first=snaps[0];
+    function setDelta(id,cur,prev,suffix){
+      var el=document.getElementById(id);if(!el)return;
+      var diff=cur-prev;
+      if(Math.abs(diff)<0.0001){el.textContent='\u2194 0'+suffix;el.className='stat-delta flat';}
+      else if(diff>0){el.textContent='\u25B2 +'+diff.toFixed(2)+suffix;el.className='stat-delta up';}
+      else{el.textContent='\u25BC '+diff.toFixed(2)+suffix;el.className='stat-delta down';}
+    }
+    document.getElementById('nhBondedRatio').textContent=(last.bonded_ratio||0).toFixed(2)+'%';
+    document.getElementById('nhInflation').textContent=(last.inflation||0).toFixed(4)+'%';
+    document.getElementById('nhSupply').textContent=fmtShort(last.total_supply||0);
+    document.getElementById('nhActiveVals').textContent=last.active_validators||0;
+    setDelta('nhBondedDelta',last.bonded_ratio||0,first.bonded_ratio||0,'%');
+    setDelta('nhInflationDelta',last.inflation||0,first.inflation||0,'%');
+    setDelta('nhSupplyDelta',last.total_supply||0,first.total_supply||0,'');
+    setDelta('nhValsDelta',last.active_validators||0,first.active_validators||0,'');
+
+    var labels=snaps.map(function(s){
+      var d=new Date(s.ts);
+      return hours<=24?d.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'}):
+             d.toLocaleDateString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+    });
+
+    function makeGradient(ctx,hex){
+      var g=ctx.createLinearGradient(0,0,0,ctx.canvas.height);
+      g.addColorStop(0,tcA(hex,0.35));g.addColorStop(0.5,tcA(hex,0.08));g.addColorStop(1,tcA(hex,0));return g;
+    }
+
+    function makeChart(canvasId,label,dataKey,color,fmt,suffix){
+      if(_nhCharts[canvasId])_nhCharts[canvasId].destroy();
+      var cvs=document.getElementById(canvasId);if(!cvs)return;
+      var ctx2d=cvs.getContext('2d');
+      var vals=snaps.map(function(s){return s[dataKey]||0;});
+      var avg=vals.reduce(function(a,b){return a+b;},0)/vals.length;
+      _nhCharts[canvasId]=new Chart(cvs,{type:'line',data:{labels:labels,datasets:[{label:label,data:vals,borderColor:color,borderWidth:2,backgroundColor:makeGradient(ctx2d,color),fill:true,tension:0.4,pointRadius:0,pointHitRadius:8,pointHoverRadius:5,pointHoverBackgroundColor:color,pointHoverBorderColor:'#fff',pointHoverBorderWidth:2}]},options:{...chartDefaults,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(0,0,0,0.85)',titleColor:'#fff',bodyColor:'#eee',padding:10,cornerRadius:8,displayColors:false,callbacks:{label:function(c){return label+': '+(fmt?fmt(c.raw):(c.raw||0).toLocaleString())+(suffix||'');}}},annotation:vals.length>2?{annotations:{avgLine:{type:'line',yMin:avg,yMax:avg,borderColor:tcA(color,0.3),borderWidth:1,borderDash:[4,4],label:{display:true,content:'avg '+(fmt?fmt(avg):avg.toFixed(2)),position:'start',backgroundColor:tcA(color,0.15),color:color,font:{size:10}}}}}:undefined}}});
+    }
+    makeChart('bondedRatioChart','Bonded Ratio',  'bonded_ratio', tc('--cyan')||'#00d4ff',  function(v){return v.toFixed(2);}, '%');
+    makeChart('inflationChart',  'Inflation',     'inflation',    tc('--orange')||'#ff9500', function(v){return v.toFixed(4);}, '%');
+    makeChart('supplyChart',     'Total Supply',   'total_supply', tc('--purple')||'#b266ff', function(v){return fmtShort(v);}, '');
+    makeChart('activeValsChart', 'Active Validators','active_validators',tc('--green')||'#00e676',function(v){return Math.round(v).toString();},'');
+
+    // Commission chart
+    if(_nhCharts['commissionHistChart'])_nhCharts['commissionHistChart'].destroy();
+    var cCvs=document.getElementById('commissionHistChart');
+    if(cCvs){
+      var cCtx=cCvs.getContext('2d');
+      var commVals=snaps.map(function(s){return s.avg_commission||0;});
+      var commAvg=commVals.reduce(function(a,b){return a+b;},0)/commVals.length;
+      _nhCharts['commissionHistChart']=new Chart(cCvs,{type:'line',data:{labels:labels,datasets:[{label:'Avg Commission',data:commVals,borderColor:tc('--pink')||'#f78166',borderWidth:2,backgroundColor:makeGradient(cCtx,tc('--pink')||'#f78166'),fill:true,tension:0.4,pointRadius:0,pointHitRadius:8,pointHoverRadius:5,pointHoverBackgroundColor:tc('--pink')||'#f78166'}]},options:{...chartDefaults,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(0,0,0,0.85)',titleColor:'#fff',bodyColor:'#eee',padding:10,cornerRadius:8,displayColors:false,callbacks:{label:function(c){return 'Avg Commission: '+c.raw.toFixed(2)+'%';}}},annotation:{annotations:{avgLine:{type:'line',yMin:commAvg,yMax:commAvg,borderColor:tcA(tc('--pink')||'#f78166',0.3),borderWidth:1,borderDash:[4,4]}}}}}});
+    }
   }catch(e){console.error('loadNetHistory',e);}
 }
 
 // ── Block Times Chart ──
 var _btChart=null;
-async function loadBlockTimes(){
+async function loadBlockTimes(hours,btn){
+  hours=hours||168;
+  if(btn){document.querySelectorAll('.bt-range').forEach(b=>b.classList.remove('active'));btn.classList.add('active');}
   try{
-    const r=await fetch('/api/block-time-history?hours=168');const d=await r.json();
+    const r=await fetch('/api/block-time-history?hours='+hours);const d=await r.json();
     var hist=d.history||[];
-    if(!hist.length){return;}
-    var labels=hist.map(function(h){return new Date(h.ts).toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});});
+    if(!hist.length){
+      document.getElementById('btCurrent').textContent='No data';
+      return;
+    }
     var data=hist.map(function(h){return h.avg_block_time;});
+    var last=data[data.length-1];
+    var mn=Math.min.apply(null,data),mx=Math.max.apply(null,data);
+    var avg=data.reduce(function(a,b){return a+b;},0)/data.length;
+    var variance=data.reduce(function(a,b){return a+(b-avg)*(b-avg);},0)/data.length;
+    var stddev=Math.sqrt(variance);
+    document.getElementById('btCurrent').textContent=last.toFixed(3)+'s';
+    document.getElementById('btMin').textContent=mn.toFixed(3)+'s';
+    document.getElementById('btMax').textContent=mx.toFixed(3)+'s';
+    document.getElementById('btStdDev').textContent=stddev.toFixed(4)+'s';
+
+    var labels=hist.map(function(h){
+      var dt=new Date(h.ts);
+      return hours<=24?dt.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'}):
+             dt.toLocaleDateString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+    });
+
     if(_btChart)_btChart.destroy();
-    var ctx=document.getElementById('blockTimeChart');if(!ctx)return;
-    _btChart=new Chart(ctx,{type:'line',data:{labels:labels,datasets:[{label:'Avg Block Time (s)',data:data,borderColor:tc('--cyan')||'#00d4ff',backgroundColor:tcA(tc('--cyan')||'#00d4ff',0.1),fill:true,tension:0.3,pointRadius:2}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{x:{ticks:{maxTicksToShow:10,color:tc('--chart-tick')},grid:{color:tc('--chart-grid')}},y:{ticks:{color:tc('--chart-tick')},grid:{color:tc('--chart-grid')}}}}});
+    var cvs=document.getElementById('blockTimeChart');if(!cvs)return;
+    var ctx2d=cvs.getContext('2d');
+    var gr=ctx2d.createLinearGradient(0,0,0,cvs.parentElement.clientHeight||320);
+    var col=tc('--cyan')||'#00d4ff';
+    gr.addColorStop(0,tcA(col,0.3));gr.addColorStop(0.6,tcA(col,0.05));gr.addColorStop(1,tcA(col,0));
+
+    // Color segments: green when low, orange/red when high
+    var segColors=data.map(function(v){
+      return v<avg-stddev?(tc('--green')||'#00e676'):v>avg+stddev?(tc('--red')||'#f85149'):col;
+    });
+
+    _btChart=new Chart(cvs,{type:'line',data:{labels:labels,datasets:[
+      {label:'Block Time',data:data,borderColor:col,borderWidth:2,backgroundColor:gr,fill:true,tension:0.35,pointRadius:0,pointHitRadius:8,pointHoverRadius:5,pointHoverBackgroundColor:col,pointHoverBorderColor:'#fff',pointHoverBorderWidth:2,segment:{borderColor:function(ctx){return ctx.p0DataIndex<segColors.length?segColors[ctx.p0DataIndex]:col;}}},
+    ]},options:{...chartDefaults,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(0,0,0,0.85)',titleColor:'#fff',bodyColor:'#eee',padding:10,cornerRadius:8,displayColors:false,callbacks:{label:function(c){return 'Block Time: '+c.raw.toFixed(3)+'s';},afterLabel:function(c){var i=c.dataIndex;var h=hist[i];return h?'Heights '+h.height_start+' \u2192 '+h.height_end:'';}}},annotation:{annotations:{avgLine:{type:'line',yMin:avg,yMax:avg,borderColor:tcA(col,0.4),borderWidth:1,borderDash:[4,4],label:{display:true,content:'avg '+avg.toFixed(3)+'s',position:'start',backgroundColor:tcA(col,0.15),color:col,font:{size:10}}},upperBand:{type:'line',yMin:avg+stddev,yMax:avg+stddev,borderColor:tcA(tc('--orange')||'#ff9500',0.3),borderWidth:1,borderDash:[2,3]},lowerBand:{type:'line',yMin:Math.max(0,avg-stddev),yMax:Math.max(0,avg-stddev),borderColor:tcA(tc('--green')||'#00e676',0.3),borderWidth:1,borderDash:[2,3]}}}}}});
   }catch(e){console.error('loadBlockTimes',e);}
 }
 
@@ -3707,16 +3850,43 @@ async function loadValSetChanges(){
 
 // ── Peer History Chart ──
 var _phChart=null;
-async function loadPeerHistory(){
+async function loadPeerHistory(hours,btn){
+  hours=hours||168;
+  if(btn){document.querySelectorAll('.ph-range').forEach(b=>b.classList.remove('active'));btn.classList.add('active');}
   try{
-    const r=await fetch('/api/peer-history?hours=168');const d=await r.json();
+    const r=await fetch('/api/peer-history?hours='+hours);const d=await r.json();
     var hist=d.history||[];
-    if(!hist.length)return;
-    var labels=hist.map(function(h){return new Date(h.ts).toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});});
+    if(!hist.length){
+      document.getElementById('phCurrent').textContent='No data';
+      return;
+    }
     var data=hist.map(function(h){return h.peer_count;});
+    var last=data[data.length-1];
+    var mn=Math.min.apply(null,data),mx=Math.max.apply(null,data);
+    var avg=Math.round(data.reduce(function(a,b){return a+b;},0)/data.length);
+    document.getElementById('phCurrent').textContent=last;
+    document.getElementById('phAvg').textContent=avg;
+    document.getElementById('phMin').textContent=mn;
+    document.getElementById('phMax').textContent=mx;
+
+    var labels=hist.map(function(h){
+      var dt=new Date(h.ts);
+      return hours<=24?dt.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'}):
+             dt.toLocaleDateString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+    });
+
     if(_phChart)_phChart.destroy();
-    var ctx=document.getElementById('peerHistoryChart');if(!ctx)return;
-    _phChart=new Chart(ctx,{type:'line',data:{labels:labels,datasets:[{label:'Peer Count',data:data,borderColor:tc('--green')||'#00e676',backgroundColor:tcA(tc('--green')||'#00e676',0.15),fill:true,tension:0.3,pointRadius:2}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{x:{ticks:{maxTicksToShow:10,color:tc('--chart-tick')},grid:{color:tc('--chart-grid')}},y:{beginAtZero:true,ticks:{color:tc('--chart-tick')},grid:{color:tc('--chart-grid')}}}}});
+    var cvs=document.getElementById('peerHistoryChart');if(!cvs)return;
+    var ctx2d=cvs.getContext('2d');
+    var col=tc('--green')||'#00e676';
+    var gr=ctx2d.createLinearGradient(0,0,0,cvs.parentElement.clientHeight||320);
+    gr.addColorStop(0,tcA(col,0.35));gr.addColorStop(0.5,tcA(col,0.08));gr.addColorStop(1,tcA(col,0));
+
+    // Danger zone: if peers drop below 3
+    var dangerAnnotations={avgLine:{type:'line',yMin:avg,yMax:avg,borderColor:tcA(col,0.3),borderWidth:1,borderDash:[4,4],label:{display:true,content:'avg '+avg,position:'start',backgroundColor:tcA(col,0.15),color:col,font:{size:10}}}};
+    if(mn<=5){dangerAnnotations.dangerZone={type:'box',yMin:0,yMax:3,backgroundColor:tcA(tc('--red')||'#f85149',0.06),borderColor:'transparent',label:{display:true,content:'Danger Zone',position:{x:'start',y:'center'},color:tcA(tc('--red')||'#f85149',0.4),font:{size:10}}};}
+
+    _phChart=new Chart(cvs,{type:'line',data:{labels:labels,datasets:[{label:'Peers',data:data,borderColor:col,borderWidth:2,backgroundColor:gr,fill:true,tension:0.35,pointRadius:0,pointHitRadius:8,pointHoverRadius:5,pointHoverBackgroundColor:col,pointHoverBorderColor:'#fff',pointHoverBorderWidth:2,segment:{borderColor:function(ctx){var v=ctx.p1.parsed.y;return v<=3?(tc('--red')||'#f85149'):v<=5?(tc('--orange')||'#ff9500'):col;}}}]},options:{...chartDefaults,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},scales:{...chartDefaults.scales,y:{...chartDefaults.scales.y,beginAtZero:true,suggestedMax:mx+2}},plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(0,0,0,0.85)',titleColor:'#fff',bodyColor:'#eee',padding:10,cornerRadius:8,displayColors:false,callbacks:{label:function(c){return 'Peers: '+c.raw;},afterLabel:function(c){var i=c.dataIndex;var h=hist[i];if(!h||!h.peer_ids)return'';return h.peer_ids.length+' unique peer IDs';}}},annotation:{annotations:dangerAnnotations}}}});
   }catch(e){console.error('loadPeerHistory',e);}
 }
 
