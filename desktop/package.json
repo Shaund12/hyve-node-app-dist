@@ -1,6 +1,6 @@
 {
   "name": "hyve-validator-dashboard",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Hyve Validator Dashboard — monitor and manage your Hyve blockchain validator",
   "main": "main.js",
   "author": "Hyve Network",
