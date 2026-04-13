@@ -1219,9 +1219,19 @@ async def get_tx_history():
     cosmos_addr = op.get("cosmosAddr", "")
     if not cosmos_addr:
         return {"transactions": []}
+
+    _EVM_SELECTORS = {
+        "4e71d92d": "Claim", "095ea7b3": "Approve", "a9059cbb": "Transfer",
+        "23b872dd": "TransferFrom", "70a08231": "BalanceOf",
+    }
+    _KNOWN_CONTRACTS = {
+        SHADE_TOKEN.lower(): "SHADE Token",
+        SHADE_EMISSION.lower(): "SHADE Emission",
+    }
+
     results = await asyncio.gather(
-        rest_call(f"/cosmos/tx/v1beta1/txs?events=message.sender%3D%27{cosmos_addr}%27&order_by=ORDER_BY_DESC&pagination.limit=30"),
-        rest_call(f"/cosmos/tx/v1beta1/txs?events=transfer.recipient%3D%27{cosmos_addr}%27&order_by=ORDER_BY_DESC&pagination.limit=20"),
+        rest_call(f"/cosmos/tx/v1beta1/txs?query=message.sender%3D%27{cosmos_addr}%27&order_by=ORDER_BY_DESC&pagination.limit=30"),
+        rest_call(f"/cosmos/tx/v1beta1/txs?query=transfer.recipient%3D%27{cosmos_addr}%27&order_by=ORDER_BY_DESC&pagination.limit=20"),
     )
     sent_data, recv_data = results
     txs = {}
@@ -1234,11 +1244,57 @@ async def get_tx_history():
                 continue
             msgs = tx.get("tx", {}).get("body", {}).get("messages", [])
             msg_types = []
+            evm_info = {}
+            is_evm = False
             for m in msgs:
                 t = m.get("@type", "").split(".")[-1]
                 t = t.replace("Msg", "").replace("Exec", "")
+                if t == "EthereumTx":
+                    is_evm = True
                 msg_types.append(t)
-            txs[txhash] = {
+
+            if is_evm:
+                events = tx.get("events", [])
+                for ev in events:
+                    if ev.get("type") == "ethereum_tx":
+                        attrs = {a["key"]: a["value"] for a in ev.get("attributes", [])}
+                        if "ethereumTxHash" in attrs and not evm_info.get("evm_hash"):
+                            evm_info["evm_hash"] = attrs["ethereumTxHash"]
+                        if "recipient" in attrs:
+                            recip = attrs["recipient"]
+                            evm_info["contract"] = recip
+                            evm_info["contract_name"] = _KNOWN_CONTRACTS.get(recip.lower(), "")
+                        if "ethereumTxFailed" in attrs:
+                            evm_info["evm_failed"] = attrs["ethereumTxFailed"]
+                    if ev.get("type") == "message":
+                        attrs = {a["key"]: a["value"] for a in ev.get("attributes", [])}
+                        if attrs.get("module") == "evm" and "sender" in attrs:
+                            evm_info["evm_sender"] = attrs["sender"]
+
+                for m in msgs:
+                    raw = m.get("raw", "")
+                    if raw.startswith("0x") and len(raw) > 10:
+                        try:
+                            raw_bytes = bytes.fromhex(raw[2:])
+                            if raw_bytes[0] == 0x02:
+                                raw_bytes = raw_bytes[1:]
+                            import rlp
+                            decoded = rlp.decode(raw_bytes)
+                            if isinstance(decoded, list) and len(decoded) >= 6:
+                                data_field = decoded[5] if len(decoded) <= 9 else decoded[-3]
+                                if isinstance(data_field, bytes) and len(data_field) >= 4:
+                                    selector = data_field[:4].hex()
+                                    evm_info["action"] = _EVM_SELECTORS.get(selector, selector)
+                        except Exception:
+                            pass
+                    if not evm_info.get("action") and raw.startswith("0x"):
+                        hex_data = raw[2:]
+                        for known_sel, name in _EVM_SELECTORS.items():
+                            if known_sel in hex_data:
+                                evm_info["action"] = name
+                                break
+
+            entry = {
                 "hash": txhash,
                 "height": int(tx.get("height", 0)),
                 "timestamp": tx.get("timestamp", ""),
@@ -1248,6 +1304,9 @@ async def get_tx_history():
                 "types": msg_types,
                 "memo": tx.get("tx", {}).get("body", {}).get("memo", ""),
             }
+            if evm_info:
+                entry["evm"] = evm_info
+            txs[txhash] = entry
     tx_list = sorted(txs.values(), key=lambda x: x["height"], reverse=True)[:40]
     return {"transactions": tx_list}
 
@@ -3093,8 +3152,12 @@ async def save_pinned_tabs(req: Request):
 
 
 # ── API: Chain Upgrades ──────────────────────────────────────────────────────
-def _get_binary_release_url():
-    return os.environ.get("BINARY_RELEASE_URL", "").rstrip("/")
+try:
+    from _hyve_config import get_binary_release_url as _get_binary_release_url
+    from _hyve_config import get_extra_libs as _get_extra_libs
+except ImportError:
+    def _get_binary_release_url(): return ""
+    def _get_extra_libs(): return ""
 
 _upgrade_download_lock = asyncio.Lock()
 
@@ -3219,7 +3282,7 @@ async def download_upgrade_binary():
     """Download the latest hyved binary from the release server."""
     release_url = _get_binary_release_url()
     if not release_url:
-        return JSONResponse({"error": "BINARY_RELEASE_URL not configured. Set it in your .env file."}, status_code=400)
+        return JSONResponse({"error": "Release server not available"}, status_code=400)
     if _upgrade_download_lock.locked():
         return JSONResponse({"error": "Download already in progress"}, status_code=409)
 
@@ -3250,8 +3313,8 @@ async def download_upgrade_binary():
             tmp.rename(dest)
             os.chmod(dest, 0o755)
 
-            # Also download additional shared libs if configured
-            extra_libs = os.environ.get("BINARY_EXTRA_LIBS", "").strip()
+            # Also download additional shared libs
+            extra_libs = _get_extra_libs()
             if extra_libs:
                 for lib_name in extra_libs.split(","):
                     lib_name = lib_name.strip()

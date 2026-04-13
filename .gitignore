@@ -10,6 +10,9 @@ __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
+*.pyx
+*.c
+build_config.py
 venv/
 .venv/
 env/
@@ -27,6 +30,10 @@ Thumbs.db
 *.swp
 *.swo
 *~
+
+# Electron / Node
+desktop/node_modules/
+desktop/dist/
 
 # Runtime data
 data/

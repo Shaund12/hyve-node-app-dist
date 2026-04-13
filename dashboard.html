@@ -913,7 +913,7 @@ kbd{display:inline-flex;align-items:center;padding:1px 5px;border-radius:4px;fon
           <span class="card-title">&#128203; Recent Transactions</span>
           <button onclick="loadTxHistory()" style="padding:5px 14px;font-size:11px">&#8635; Refresh</button>
         </div>
-        <div style="overflow-x:auto"><table><thead><tr><th>Height</th><th>Hash</th><th>Type</th><th>Status</th><th>Gas</th><th>Time</th></tr></thead><tbody id="txHistoryTable"><tr><td colspan="6" style="text-align:center;color:var(--text3)">Click tab to load...</td></tr></tbody></table></div>
+        <div style="overflow-x:auto"><table><thead><tr><th>Height</th><th>Hash</th><th>Type</th><th>Details</th><th>Status</th><th>Gas</th><th>Time</th></tr></thead><tbody id="txHistoryTable"><tr><td colspan="7" style="text-align:center;color:var(--text3)">Click tab to load...</td></tr></tbody></table></div>
       </div>
     </div>
 
@@ -2265,10 +2265,22 @@ async function loadTxHistory(){
     const r=await fetch('/api/tx-history');const d=await r.json();
     const txs=d.transactions||[];
     document.getElementById('txHistoryTable').innerHTML=txs.length?txs.map(tx=>{
-      const status=tx.code===0?'<span style="color:var(--green)">OK</span>':'<span style="color:var(--red)">FAIL ('+tx.code+')</span>';
-      const types=tx.types.map(t=>'<span style="background:var(--bg);padding:1px 6px;border-radius:4px;font-size:10px;color:var(--cyan)">'+escapeHtml(t)+'</span>').join(' ');
-      return '<tr><td class="mono">'+fmtInt(tx.height)+'</td><td class="mono" style="font-size:11px" title="'+tx.hash+'">'+tx.hash.slice(0,12)+'&hellip;</td><td>'+types+'</td><td>'+status+'</td><td class="mono" style="font-size:11px">'+fmtInt(tx.gas_used)+'/'+fmtInt(tx.gas_wanted)+'</td><td style="font-size:11px;color:var(--text2)">'+timeAgo(tx.timestamp)+'</td></tr>';
-    }).join(''):'<tr><td colspan="6" style="text-align:center;color:var(--text3)">No transactions found</td></tr>';
+      const evm=tx.evm||{};
+      const evmFailed=evm.evm_failed;
+      const status=evmFailed?'<span style="color:var(--red)" title="'+escapeHtml(evmFailed)+'">EVM FAIL</span>':(tx.code===0?'<span style="color:var(--green)">OK</span>':'<span style="color:var(--red)">FAIL ('+tx.code+')</span>');
+      const types=tx.types.map(t=>{
+        const color=t==='EthereumTx'?'var(--purple)':'var(--cyan)';
+        return '<span style="background:var(--bg);padding:1px 6px;border-radius:4px;font-size:10px;color:'+color+'">'+escapeHtml(t)+'</span>';
+      }).join(' ');
+      let hash=tx.hash.slice(0,12)+'&hellip;';
+      let hashTitle=tx.hash;
+      if(evm.evm_hash){hash=evm.evm_hash.slice(0,14)+'&hellip;';hashTitle=evm.evm_hash+' (Cosmos: '+tx.hash+')';}
+      let details='';
+      if(evm.action){details+='<span style="background:var(--bg);padding:1px 6px;border-radius:4px;font-size:10px;color:var(--yellow)">'+escapeHtml(evm.action)+'</span> ';}
+      if(evm.contract_name){details+='<span style="font-size:10px;color:var(--text2)">'+escapeHtml(evm.contract_name)+'</span>';}
+      else if(evm.contract){details+='<span class="mono" style="font-size:10px;color:var(--text3)">'+evm.contract.slice(0,10)+'&hellip;</span>';}
+      return '<tr><td class="mono">'+fmtInt(tx.height)+'</td><td class="mono" style="font-size:11px" title="'+escapeHtml(hashTitle)+'"><a href="https://explorer.hyvechain.com/tx/'+(evm.evm_hash||tx.hash)+'" target="_blank" style="color:var(--cyan);text-decoration:none">'+hash+'</a></td><td>'+types+'</td><td>'+details+'</td><td>'+status+'</td><td class="mono" style="font-size:11px">'+fmtInt(tx.gas_used)+'/'+fmtInt(tx.gas_wanted)+'</td><td style="font-size:11px;color:var(--text2)">'+timeAgo(tx.timestamp)+'</td></tr>';
+    }).join(''):'<tr><td colspan="7" style="text-align:center;color:var(--text3)">No transactions found</td></tr>';
   }catch(e){}
 }
 
@@ -3647,19 +3659,11 @@ async function loadUpgrades(){
     document.getElementById('ugLocalSha').textContent=lb.sha256||'-';
     document.getElementById('ugUpgradeSha').textContent=ub.exists?(ub.sha256||'-'):'(none)';
     // Button states
-    var urlOk=d.release_url_configured;
-    document.getElementById('ugDownloadBtn').disabled=!urlOk||!(rb.size>0);
+    document.getElementById('ugDownloadBtn').disabled=!(rb.size>0);
     document.getElementById('ugApplyBtn').disabled=!ub.exists;
     document.getElementById('ugRollbackBtn').disabled=false;
-    // Not configured notice
-    if(!urlOk){
-      document.getElementById('ugRemoteStatus').textContent='Not configured';
-      document.getElementById('ugRemoteStatus').style.color='var(--text3)';
-      document.getElementById('ugRemoteInfo').textContent='Set BINARY_RELEASE_URL in .env';
-      document.getElementById('ugDownloadBtn').textContent='\u2B07 Release URL Not Configured';
-      document.getElementById('ugDownloadBtn').style.background='';
-      document.getElementById('ugDownloadBtn').style.color='';
-    } else if(d.new_binary_available){
+    // Download button label
+    if(d.new_binary_available){
       document.getElementById('ugDownloadBtn').textContent='\u2B07 Download New Binary Available!';
       document.getElementById('ugDownloadBtn').style.background='var(--orange)';
       document.getElementById('ugDownloadBtn').style.color='#000';

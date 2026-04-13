@@ -4,3 +4,4 @@ websockets>=12.0
 httpx>=0.27.0
 psutil>=5.9.0
 asyncssh>=2.14.0
+rlp>=4.0.0

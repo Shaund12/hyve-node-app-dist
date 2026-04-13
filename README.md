@@ -106,13 +106,13 @@ If `catching_up` is `true`, wait for your node to finish syncing before using th
 
 ## Quick Start
 
-### 1. Clone and run the automated setup
+### 1. Clone and run the guided installer
 
 ```bash
 git clone <this-repo> hyve-node-app
 cd hyve-node-app
-chmod +x setup.sh run.sh
-./setup.sh
+chmod +x install.sh
+./install.sh
 ```
 
 The setup script will:

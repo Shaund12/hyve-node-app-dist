@@ -1,0 +1,94 @@
+{
+  "name": "hyve-validator-dashboard",
+  "version": "1.1.0",
+  "description": "Hyve Validator Dashboard — monitor and manage your Hyve blockchain validator",
+  "main": "main.js",
+  "author": "Hyve Network",
+  "homepage": "https://hyve.network",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "build:deb": "electron-builder --linux deb",
+    "build:appimage": "electron-builder --linux AppImage",
+    "build": "electron-builder --linux deb AppImage"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.0"
+  },
+  "build": {
+    "appId": "com.hyve.validator-dashboard",
+    "productName": "Hyve Validator Dashboard",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "setup.html",
+      "assets/**"
+    ],
+    "extraResources": [
+      {
+        "from": "../server.py",
+        "to": "bundle/server.py"
+      },
+      {
+        "from": "../dashboard.html",
+        "to": "bundle/dashboard.html"
+      },
+      {
+        "from": "../requirements.txt",
+        "to": "bundle/requirements.txt"
+      },
+      {
+        "from": "../.env.example",
+        "to": "bundle/.env.example"
+      },
+      {
+        "from": "../run.sh",
+        "to": "bundle/run.sh"
+      },
+      {
+        "from": "../hyve-node.service",
+        "to": "bundle/hyve-node.service"
+      },
+      {
+        "from": "../hyve-dashboard.service",
+        "to": "bundle/hyve-dashboard.service"
+      },
+      {
+        "from": "../_hyve_config.cpython-312-x86_64-linux-gnu.so",
+        "to": "bundle/_hyve_config.cpython-312-x86_64-linux-gnu.so"
+      }
+    ],
+    "linux": {
+      "target": [
+        {
+          "target": "deb",
+          "arch": ["x64"]
+        },
+        {
+          "target": "AppImage",
+          "arch": ["x64"]
+        }
+      ],
+      "category": "Utility",
+      "icon": "build/icons",
+      "maintainer": "Hyve Network",
+      "synopsis": "Validator dashboard for the Hyve blockchain"
+    },
+    "deb": {
+      "depends": [
+        "python3 (>= 3.10)",
+        "python3-venv",
+        "curl"
+      ],
+      "recommends": [
+        "postgresql",
+        "postgresql-client"
+      ]
+    }
+  }
+}

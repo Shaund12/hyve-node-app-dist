@@ -1,0 +1,1070 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hyve Validator Dashboard — Setup</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  :root{
+    --bg1:#0d1117;--bg2:#161b22;--bg3:#21262d;--bg4:#30363d;
+    --text1:#e6edf3;--text2:#8b949e;--text3:#6e7681;
+    --cyan:#58a6ff;--green:#3fb950;--red:#f85149;--yellow:#d29922;--purple:#a371f7;
+    --greenBg:rgba(63,185,80,0.12);--redBg:rgba(248,81,73,0.12);
+  }
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+       background:var(--bg1);color:var(--text1);min-height:100vh;display:flex}
+  a{color:var(--cyan);text-decoration:none}
+
+  /* Sidebar */
+  .sidebar{width:220px;background:var(--bg2);border-right:1px solid var(--bg4);padding:24px 0;flex-shrink:0;display:flex;flex-direction:column}
+  .sidebar-title{padding:0 20px 20px;font-size:14px;font-weight:700;color:var(--text1);border-bottom:1px solid var(--bg4);margin-bottom:12px}
+  .sidebar-title span{display:block;font-size:11px;font-weight:400;color:var(--text3);margin-top:4px}
+  .step-list{list-style:none;padding:0 12px}
+  .step-item{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:6px;font-size:13px;color:var(--text3);cursor:default;margin-bottom:2px}
+  .step-item.active{background:var(--bg3);color:var(--text1);font-weight:600}
+  .step-item.done{color:var(--green)}
+  .step-item .num{width:22px;height:22px;border-radius:50%;border:2px solid var(--bg4);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0}
+  .step-item.active .num{border-color:var(--cyan);color:var(--cyan)}
+  .step-item.done .num{border-color:var(--green);background:var(--green);color:var(--bg1)}
+
+  /* Main content */
+  .main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+  .content{flex:1;overflow-y:auto;padding:32px 40px}
+  .step-panel{display:none}
+  .step-panel.active{display:block}
+  .step-title{font-size:22px;font-weight:700;margin-bottom:8px}
+  .step-desc{color:var(--text2);font-size:14px;line-height:1.6;margin-bottom:24px}
+
+  /* Footer */
+  .footer{padding:16px 40px;border-top:1px solid var(--bg4);display:flex;justify-content:flex-end;gap:12px;background:var(--bg2)}
+  .btn{padding:8px 24px;border-radius:6px;border:1px solid var(--bg4);background:var(--bg3);color:var(--text1);font-size:13px;font-weight:600;cursor:pointer;transition:all 0.15s}
+  .btn:hover{background:var(--bg4)}
+  .btn:disabled{opacity:0.4;cursor:not-allowed}
+  .btn-primary{background:var(--cyan);border-color:var(--cyan);color:#000}
+  .btn-primary:hover{opacity:0.9;background:var(--cyan)}
+  .btn-green{background:var(--green);border-color:var(--green);color:#000}
+  .btn-green:hover{opacity:0.9;background:var(--green)}
+
+  /* Components */
+  .check-row{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--bg2);border-radius:6px;margin-bottom:6px;font-size:13px}
+  .check-row .icon{font-size:16px;width:22px;text-align:center}
+  .check-row .label{flex:1}
+  .check-row .detail{color:var(--text3);font-size:12px}
+  .check-ok .icon{color:var(--green)}
+  .check-fail .icon{color:var(--red)}
+  .check-warn .icon{color:var(--yellow)}
+  .check-wait .icon{color:var(--text3)}
+
+  .terminal{background:#000;border:1px solid var(--bg4);border-radius:6px;padding:14px;font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;font-size:12px;color:var(--green);max-height:260px;overflow-y:auto;white-space:pre-wrap;line-height:1.6;margin:16px 0}
+
+  .input-group{margin-bottom:16px}
+  .input-group label{display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:var(--text2)}
+  .input-group input,.input-group select{width:100%;padding:8px 12px;background:var(--bg2);border:1px solid var(--bg4);border-radius:6px;color:var(--text1);font-size:13px;font-family:inherit}
+  .input-group input:focus{outline:none;border-color:var(--cyan)}
+  .input-group .hint{font-size:11px;color:var(--text3);margin-top:4px}
+
+  .radio-group{display:flex;gap:12px;margin:12px 0}
+  .radio-opt{flex:1;padding:14px;background:var(--bg2);border:2px solid var(--bg4);border-radius:8px;cursor:pointer;text-align:center;transition:border-color 0.15s}
+  .radio-opt:hover{border-color:var(--text3)}
+  .radio-opt.selected{border-color:var(--cyan);background:rgba(88,166,255,0.06)}
+  .radio-opt .ro-title{font-weight:600;font-size:14px;margin-bottom:4px}
+  .radio-opt .ro-desc{font-size:11px;color:var(--text3)}
+
+  .alert{padding:12px 16px;border-radius:6px;font-size:13px;margin:12px 0;line-height:1.5}
+  .alert-info{background:rgba(88,166,255,0.08);border:1px solid rgba(88,166,255,0.2);color:var(--cyan)}
+  .alert-warn{background:rgba(210,153,34,0.08);border:1px solid rgba(210,153,34,0.2);color:var(--yellow)}
+  .alert-ok{background:var(--greenBg);border:1px solid rgba(63,185,80,0.2);color:var(--green)}
+
+  .cred-box{background:var(--bg2);border:1px solid var(--bg4);border-radius:8px;padding:20px;text-align:center;margin:16px 0}
+  .cred-box .label{font-size:12px;color:var(--text3);margin-bottom:4px}
+  .cred-box .value{font-size:18px;font-weight:700;font-family:monospace;color:var(--cyan);margin-bottom:12px}
+
+  .spinner{display:inline-block;width:16px;height:16px;border:2px solid var(--bg4);border-top-color:var(--cyan);border-radius:50%;animation:spin 0.8s linear infinite;vertical-align:middle;margin-right:8px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* Collapsible guide sections */
+  .guide-toggle{display:flex;align-items:center;gap:8px;padding:12px 16px;background:var(--bg2);border:1px solid var(--bg4);border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;color:var(--cyan);transition:background 0.15s;user-select:none}
+  .guide-toggle:hover{background:var(--bg3)}
+  .guide-toggle .arrow{transition:transform 0.2s;font-size:10px}
+  .guide-toggle.open .arrow{transform:rotate(90deg)}
+  .guide-content{display:none;padding:16px 20px;background:var(--bg2);border:1px solid var(--bg4);border-top:none;border-radius:0 0 6px 6px;font-size:12px;line-height:1.7;color:var(--text2)}
+  .guide-content.open{display:block}
+  .guide-content code{background:var(--bg3);padding:2px 6px;border-radius:3px;font-size:11px;color:var(--text1)}
+  .guide-content .cmd-block{display:block;margin:8px 0;padding:10px 14px;background:#000;border:1px solid var(--bg4);border-radius:4px;font-family:'SFMono-Regular',Consolas,monospace;font-size:11px;color:var(--green);white-space:pre-wrap;line-height:1.6}
+  .guide-content ol,.guide-content ul{margin:8px 0 8px 20px}
+  .guide-content li{margin-bottom:6px}
+  .guide-content h4{color:var(--text1);font-size:13px;margin:14px 0 6px;padding-bottom:4px;border-bottom:1px solid var(--bg4)}
+  .guide-content h4:first-child{margin-top:0}
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<div class="sidebar">
+  <div class="sidebar-title">
+    <img src="assets/logo-64.png" alt="Hyve" style="width:40px;height:40px;margin-bottom:8px;display:block">
+    Hyve Validator Dashboard
+    <span>Setup Wizard</span>
+  </div>
+  <ul class="step-list" id="stepList">
+    <li class="step-item active" data-step="0"><span class="num">1</span>Welcome</li>
+    <li class="step-item" data-step="1"><span class="num">2</span>System Check</li>
+    <li class="step-item" data-step="2"><span class="num">3</span>Node Location</li>
+    <li class="step-item" data-step="3"><span class="num">4</span>Dependencies</li>
+    <li class="step-item" data-step="4"><span class="num">5</span>Configuration</li>
+    <li class="step-item" data-step="5"><span class="num">6</span>Services</li>
+    <li class="step-item" data-step="6"><span class="num">7</span>Complete</li>
+  </ul>
+</div>
+
+<!-- Main -->
+<div class="main">
+<div class="content">
+
+<!-- Step 0: Welcome -->
+<div class="step-panel active" id="step-0">
+  <div style="display:flex;align-items:center;gap:16px;margin-bottom:8px">
+    <img src="assets/logo-64.png" alt="Hyve" style="width:48px;height:48px">
+    <div class="step-title" style="margin-bottom:0">Welcome to the Hyve Validator Dashboard</div>
+  </div>
+  <div class="step-desc">
+    This guided wizard will walk you through every step of installing the Hyve Validator
+    Dashboard on your machine. The dashboard is a powerful monitoring and management tool
+    for your Hyve blockchain validator node — it provides real-time metrics, staking
+    operations, reward tracking, governance voting, and much more.
+  </div>
+
+  <div class="alert alert-warn">
+    <strong>Important: Prerequisites Required</strong><br>
+    Before continuing, you <strong>must</strong> have completed all of the following.
+    If you haven't, please do so first and return to this installer afterward.
+  </div>
+
+  <div style="margin:20px 0">
+    <div class="check-row" style="flex-direction:column;align-items:flex-start;gap:4px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="icon">📋</span>
+        <span class="label" style="font-weight:600">1. Installed the Hyve Validator App</span>
+      </div>
+      <div style="padding-left:32px;color:var(--text2);font-size:12px;line-height:1.5">
+        Download the Hyve Validator application for your platform (Windows or Linux)
+        from the official Hyve website. This app installs the <code>hyved</code> binary
+        and sets up the node directory structure at <code>~/.config/hyve-node/</code>.
+      </div>
+    </div>
+    <div class="check-row" style="flex-direction:column;align-items:flex-start;gap:4px;margin-top:4px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="icon">📋</span>
+        <span class="label" style="font-weight:600">2. Activated Your Validator</span>
+      </div>
+      <div style="padding-left:32px;color:var(--text2);font-size:12px;line-height:1.5">
+        Used the app to create and activate your validator on the Hyve network. This
+        involves self-delegating at least 1 HYVE and registering your validator on-chain.
+        Your validator must have a valoper address (starts with <code>hyvevaloper...</code>).
+      </div>
+    </div>
+    <div class="check-row" style="flex-direction:column;align-items:flex-start;gap:4px;margin-top:4px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="icon">📋</span>
+        <span class="label" style="font-weight:600">3. Node Has Synced</span>
+      </div>
+      <div style="padding-left:32px;color:var(--text2);font-size:12px;line-height:1.5">
+        Your node should have completed an initial sync at least once. The node doesn't
+        need to be running right now — but it must have been synced before. If you just
+        installed the app and it's still syncing, wait for it to finish first. You can
+        check sync status in the Hyve Validator app or by running:<br>
+        <code style="color:var(--text1)">curl -s http://127.0.0.1:26657/status | jq .result.sync_info.catching_up</code><br>
+        (should return <code>false</code> when synced)
+      </div>
+    </div>
+  </div>
+
+  <!-- Windows to Ubuntu migration guide -->
+  <div style="margin:20px 0">
+    <div class="guide-toggle" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open')">
+      <span class="arrow">▶</span>
+      <span>Set up on Windows first? Click here for migration instructions</span>
+    </div>
+    <div class="guide-content">
+      <p>If you activated your validator using the Hyve Validator app on a <strong style="color:var(--text1)">Windows PC</strong> and want to
+      move it to an <strong style="color:var(--text1)">Ubuntu server</strong> for 24/7 operation, follow these steps.</p>
+
+      <h4>Step 1: Install the Hyve Validator App on Ubuntu</h4>
+      <p>Download and install the Linux version of the Hyve Validator app on your Ubuntu machine.
+      Run it once and let it initialize — this creates the directory structure and downloads the
+      Linux <code>hyved</code> binary.</p>
+      <p>Default install location: <code>~/.config/hyve-node/</code></p>
+      <p><strong style="color:var(--yellow)">Important:</strong> Stop the validator app on Ubuntu after the initial setup.
+      Do <strong>not</strong> let it sync yet — you need to copy your Windows config first.</p>
+
+      <h4>Step 2: Locate Your Windows Config Files</h4>
+      <p>On your Windows PC, the Hyve Validator app stores data at:</p>
+      <div class="cmd-block">%APPDATA%\hyve-node\</div>
+      <p>Open File Explorer and paste that path in the address bar, or navigate to:</p>
+      <div class="cmd-block">C:\Users\YOUR_USERNAME\AppData\Roaming\hyve-node\</div>
+      <p>Inside, you'll see a structure like:</p>
+      <div class="cmd-block">hyve-node/
+├── bin/             ← Windows binaries (do NOT copy these)
+├── home/
+│   ├── config/      ← ✅ COPY THIS ENTIRE FOLDER
+│   │   ├── app.toml
+│   │   ├── config.toml
+│   │   ├── genesis.json
+│   │   ├── node_key.json
+│   │   └── priv_validator_key.json  ← ⚠️ CRITICAL FILE
+│   ├── data/        ← blockchain data (do NOT copy — will re-sync)
+│   └── keyring-test/ ← ✅ COPY THIS if it exists
+└── logs/</div>
+
+      <h4>Step 3: Copy Config Files to Ubuntu</h4>
+      <p>You need to copy the <code>config/</code> folder and optionally the <code>keyring-test/</code> folder
+      from your Windows machine to your Ubuntu machine. Here are several ways to do it:</p>
+
+      <p><strong style="color:var(--text1)">Option A: USB Drive</strong></p>
+      <ol>
+        <li>On Windows: Copy the <code>home\config\</code> folder to a USB drive</li>
+        <li>Also copy <code>home\keyring-test\</code> if it exists</li>
+        <li>Plug the USB into your Ubuntu machine</li>
+        <li>Copy the files to the node directory:</li>
+      </ol>
+      <div class="cmd-block"># Replace /media/YOUR_USER/USB_NAME with your actual USB mount path
+cp -r /media/$USER/USB_NAME/config/* ~/.config/hyve-node/home/config/
+cp -r /media/$USER/USB_NAME/keyring-test ~/.config/hyve-node/home/ 2>/dev/null</div>
+
+      <p><strong style="color:var(--text1)">Option B: SCP (network transfer)</strong></p>
+      <p>If both machines are on the same network, use SCP from Windows (PowerShell or Git Bash):</p>
+      <div class="cmd-block"># Run this on your Windows PC (PowerShell)
+# Replace UBUNTU_USER and UBUNTU_IP with your Ubuntu username and IP address
+scp -r "$env:APPDATA\hyve-node\home\config\*" UBUNTU_USER@UBUNTU_IP:~/.config/hyve-node/home/config/
+scp -r "$env:APPDATA\hyve-node\home\keyring-test" UBUNTU_USER@UBUNTU_IP:~/.config/hyve-node/home/</div>
+      <p>Or from your Ubuntu machine, pull from Windows (if Windows has OpenSSH enabled):</p>
+      <div class="cmd-block"># Run this on your Ubuntu machine
+# Replace WIN_USER and WIN_IP with your Windows username and IP address
+scp -r WIN_USER@WIN_IP:"C:/Users/WIN_USER/AppData/Roaming/hyve-node/home/config/*" ~/.config/hyve-node/home/config/
+scp -r WIN_USER@WIN_IP:"C:/Users/WIN_USER/AppData/Roaming/hyve-node/home/keyring-test" ~/.config/hyve-node/home/</div>
+
+      <p><strong style="color:var(--text1)">Option C: WinSCP (GUI transfer)</strong></p>
+      <ol>
+        <li>Download <a href="https://winscp.net" target="_blank" style="color:var(--cyan)">WinSCP</a> on your Windows PC</li>
+        <li>Connect to your Ubuntu machine using its IP address and your SSH credentials</li>
+        <li>Navigate to <code>~/.config/hyve-node/home/</code> on the Ubuntu side</li>
+        <li>Drag and drop the <code>config/</code> folder from Windows to Ubuntu, overwriting existing files</li>
+        <li>Also drag <code>keyring-test/</code> if it exists</li>
+      </ol>
+
+      <h4>Step 4: Set Correct Permissions</h4>
+      <p>After copying, fix file permissions on Ubuntu:</p>
+      <div class="cmd-block">chmod 600 ~/.config/hyve-node/home/config/priv_validator_key.json
+chmod 600 ~/.config/hyve-node/home/config/node_key.json
+chmod -R 700 ~/.config/hyve-node/home/keyring-test 2>/dev/null</div>
+
+      <h4>Step 5: Export Your Private Key</h4>
+      <p>Before shutting down the Windows validator, export your private key. You'll need it for the
+      dashboard's Configuration step (Step 5 in this wizard):</p>
+      <ul>
+        <li><strong>From Hyve Validator App:</strong> Settings → Export Private Key</li>
+        <li><strong>From MetaMask:</strong> Account Details → Export Private Key</li>
+      </ul>
+      <p>Save the 64-character hex key somewhere safe. You'll paste it in Step 5.</p>
+
+      <h4>Step 6: Stop the Windows Validator</h4>
+      <div class="alert alert-warn" style="margin:8px 0;font-size:12px">
+        <strong>CRITICAL — Double-Sign Prevention</strong><br>
+        Before starting the node on Ubuntu, you <strong>must</strong> fully stop the validator on Windows.
+        Running the same validator on two machines simultaneously will cause a <strong>double-sign</strong>,
+        which results in permanent jailing and slashing of your staked HYVE.
+      </div>
+      <ol>
+        <li>Close the Hyve Validator app on Windows completely (check the system tray)</li>
+        <li>Verify no <code>hyved</code> process is still running: open Task Manager and check</li>
+        <li>Optionally uninstall the Hyve Validator app to prevent accidental restart</li>
+      </ol>
+
+      <h4>Step 7: Continue with This Wizard</h4>
+      <p>Once you've completed the steps above:</p>
+      <ul>
+        <li>Your Ubuntu machine has the Linux <code>hyved</code> binary (from the Linux Hyve Validator app)</li>
+        <li>Your validator's config and keys are copied from Windows</li>
+        <li>The Windows validator is fully stopped</li>
+        <li>You have your private key saved for the Configuration step</li>
+      </ul>
+      <p style="color:var(--green);font-weight:600;margin-top:8px">Click "Get Started" below to continue with the dashboard setup.</p>
+    </div>
+  </div>
+
+  <div class="alert alert-info">
+    <strong>What This Installer Does</strong><br>
+    <ol style="margin:8px 0 0 16px;line-height:1.8">
+      <li>Checks your system for required software (Python, curl, etc.)</li>
+      <li>Locates your Hyve node installation and verifies it's set up correctly</li>
+      <li>Creates a Python virtual environment and installs all dashboard dependencies</li>
+      <li>Configures your validator private key (optional — dashboard works in read-only mode without it)</li>
+      <li>Sets up PostgreSQL database for metrics storage (optional — falls back to JSON files)</li>
+      <li>Installs and starts two systemd services that run automatically on boot</li>
+    </ol>
+  </div>
+
+  <div class="step-desc" style="margin-top:16px">
+    <strong>Installation directory:</strong> <code style="color:var(--cyan)" id="welcomeRuntimeDir">~/.local/share/hyve-dashboard/</code><br>
+    <strong>Dashboard URL:</strong> <code style="color:var(--cyan)">http://127.0.0.1:8420</code> (local only by default)<br>
+    <strong>Time to complete:</strong> About 2–5 minutes depending on your internet speed
+  </div>
+</div>
+
+<!-- Step 1: System Check -->
+<div class="step-panel" id="step-1">
+  <div class="step-title">System Requirements</div>
+  <div class="step-desc">
+    The dashboard needs a few system packages to run. This step automatically detects
+    what's installed on your system. Green checkmarks mean you're good — red X marks
+    mean something needs to be installed before continuing.
+  </div>
+
+  <div class="alert alert-info" style="margin-bottom:16px">
+    <strong>Required Packages</strong>
+    <ul style="margin:6px 0 0 16px;line-height:1.8;font-size:12px">
+      <li><strong>Python 3.10+</strong> — Runs the FastAPI backend server that powers the dashboard</li>
+      <li><strong>python3-venv</strong> — Creates an isolated virtual environment so dashboard packages don't conflict with your system Python</li>
+      <li><strong>curl</strong> — Used by the dashboard to query your node's RPC endpoints</li>
+    </ul>
+    <div style="margin-top:8px;font-size:12px">
+      <strong>Optional:</strong> <strong>PostgreSQL</strong> — Enables persistent storage for metrics history,
+      reward logs, delegation tracking, and more. Without it, the dashboard stores data in local JSON
+      files which works fine but limits history to a smaller window.
+    </div>
+  </div>
+
+  <div id="sysChecks">
+    <div class="check-row check-wait"><span class="icon">⏳</span><span class="label">Checking...</span></div>
+  </div>
+  <div id="sysCheckResult" style="margin-top:16px"></div>
+  <div style="display:flex;gap:8px;margin-top:8px">
+    <button class="btn btn-primary" onclick="doInstallSysDeps()" id="installSysDepsBtn" style="display:none">Install Missing Packages</button>
+    <button class="btn" onclick="doSystemCheck()" id="recheckBtn" style="display:none">Re-check Requirements</button>
+  </div>
+  <div class="terminal" id="sysTerminal" style="display:none"></div>
+</div>
+
+<!-- Step 2: Node Location -->
+<div class="step-panel" id="step-2">
+  <div class="step-title">Locate Your Hyve Node</div>
+  <div class="step-desc">
+    The dashboard connects to your local Hyve node to read validator status, monitor
+    performance, and execute transactions. We need to verify that your node installation
+    is set up correctly.
+  </div>
+
+  <div class="alert alert-info" style="margin-bottom:16px;font-size:12px;line-height:1.6">
+    <strong>What we're looking for:</strong><br>
+    The Hyve Validator app installs the node to <code>~/.config/hyve-node/</code> by default.
+    This directory should contain:
+    <ul style="margin:6px 0 0 16px">
+      <li><code>bin/hyved</code> — The validator binary that runs your node</li>
+      <li><code>home/config/</code> — Node configuration files (app.toml, config.toml, genesis.json)</li>
+      <li><code>home/data/</code> — Blockchain state database</li>
+      <li><code>home/keyring-test/</code> — Key storage used for transaction signing</li>
+    </ul>
+    <div style="margin-top:6px">
+    If you installed the Hyve Validator app to a custom location, update the path below.
+    The path should point to the root directory (the one containing <code>bin/</code> and <code>home/</code>).
+    </div>
+  </div>
+
+  <div class="input-group">
+    <label>Node Directory</label>
+    <input type="text" id="nodeDirInput" placeholder="~/.config/hyve-node">
+    <div class="hint">The directory containing bin/hyved, home/config/, and home/data/. The default path works for most installations.</div>
+  </div>
+  <button class="btn" onclick="doCheckNode()" id="checkNodeBtn">Verify Node Installation</button>
+  <div id="nodeChecks" style="margin-top:16px"></div>
+  <div id="nodeCheckResult" style="margin-top:12px"></div>
+
+  <div class="alert alert-info" style="margin-top:16px;font-size:12px;display:none" id="nodeHelpBox">
+    <strong>Troubleshooting</strong>
+    <ul style="margin:6px 0 0 16px;line-height:1.8">
+      <li><strong>Directory not found:</strong> Make sure you've installed and run the Hyve Validator app at least once</li>
+      <li><strong>Binary missing:</strong> The app may still be downloading — open it and wait for the download to complete</li>
+      <li><strong>Config missing:</strong> Run the Hyve Validator app and let it initialize (it creates config on first run)</li>
+      <li><strong>Node not running:</strong> That's OK! The node doesn't need to be running during setup. The systemd service will start it automatically</li>
+    </ul>
+  </div>
+</div>
+
+<!-- Step 3: Dependencies -->
+<div class="step-panel" id="step-3">
+  <div class="step-title">Install Dependencies</div>
+  <div class="step-desc">
+    This step creates an isolated Python virtual environment and installs all the packages
+    the dashboard needs to run. Everything is installed locally — it won't affect your
+    system Python installation.
+  </div>
+
+  <div class="alert alert-info" style="margin-bottom:16px;font-size:12px;line-height:1.6">
+    <strong>What gets installed:</strong>
+    <ul style="margin:6px 0 0 16px">
+      <li><strong>FastAPI + Uvicorn</strong> — The high-performance web server that serves the dashboard</li>
+      <li><strong>httpx</strong> — HTTP client for communicating with your node's RPC/REST/EVM endpoints</li>
+      <li><strong>psutil</strong> — System monitoring (CPU, memory, disk usage, process detection)</li>
+      <li><strong>websockets</strong> — Real-time live updates pushed to the dashboard UI</li>
+      <li><strong>asyncssh</strong> — SSH client for the failover feature (connecting to backup nodes)</li>
+      <li><strong>asyncpg</strong> <em>(optional)</em> — PostgreSQL driver for persistent metrics storage</li>
+      <li><strong>eth-account</strong> <em>(optional)</em> — EVM transaction signing for SHADE token operations</li>
+      <li><strong>rlp</strong> <em>(optional)</em> — RLP decoder for parsing EVM transaction data</li>
+    </ul>
+    <div style="margin-top:8px">
+      Optional packages are installed with best-effort — if they fail, the dashboard
+      simply disables those specific features and everything else works normally.
+    </div>
+  </div>
+
+  <button class="btn btn-primary" onclick="doInstallDeps()" id="installDepsBtn">Install Dependencies</button>
+  <div style="font-size:12px;color:var(--text3);margin-top:6px" id="depsHint">
+    This downloads and installs packages from PyPI. Typically takes 30–90 seconds depending on
+    internet speed. Watch the terminal output below for progress.
+  </div>
+  <div class="terminal" id="depsTerminal" style="display:none"></div>
+  <div id="depsResult" style="margin-top:12px"></div>
+</div>
+
+<!-- Step 4: Configuration -->
+<div class="step-panel" id="step-4">
+  <div class="step-title">Configure Your Validator</div>
+  <div class="step-desc">
+    The dashboard can operate in two modes. <strong>Full mode</strong> requires your validator's
+    private key and enables transaction signing — you'll be able to claim rewards, delegate,
+    compound, vote on governance proposals, and manage SHADE tokens directly from the dashboard.
+    <strong>Read-only mode</strong> works without a key — you get full monitoring but no transaction capabilities.
+  </div>
+
+  <div class="radio-group" id="keyChoice">
+    <div class="radio-opt selected" onclick="selectKeyOpt(0)" data-idx="0">
+      <div class="ro-title">Enter Key Now</div>
+      <div class="ro-desc">Full functionality — monitoring + transactions</div>
+    </div>
+    <div class="radio-opt" onclick="selectKeyOpt(1)" data-idx="1">
+      <div class="ro-title">Skip For Now</div>
+      <div class="ro-desc">Read-only monitoring mode</div>
+    </div>
+  </div>
+
+  <div id="keyInputSection">
+    <div class="input-group">
+      <label>Validator Private Key</label>
+      <input type="password" id="privKeyInput" placeholder="64-character hex string (no 0x prefix)">
+      <div class="hint">
+        This is a 64-character hexadecimal string. Do NOT include the "0x" prefix.
+      </div>
+    </div>
+    <div id="keyValidation"></div>
+
+    <div class="alert alert-info" style="font-size:12px;line-height:1.6;margin-top:12px">
+      <strong>Where to find your private key:</strong>
+      <ul style="margin:6px 0 0 16px">
+        <li><strong>Hyve Validator App:</strong> Settings → Export Private Key</li>
+        <li><strong>MetaMask:</strong> Account Details → Export Private Key</li>
+        <li><strong>From mnemonic:</strong> Use a BIP39 derivation tool with path <code>m/44'/60'/0'/0/0</code></li>
+        <li><strong>From hyved:</strong> <code>hyved keys export validator-operator --unsafe --unarmored-hex</code></li>
+      </ul>
+    </div>
+
+    <div class="alert alert-warn" style="font-size:12px;line-height:1.5;margin-top:8px">
+      <strong>Security Notes</strong>
+      <ul style="margin:6px 0 0 16px">
+        <li>Your key is stored locally in <code>~/.local/share/hyve-dashboard/.env</code> with restricted file permissions (chmod 600)</li>
+        <li>The key never leaves your machine — it's used only to sign transactions locally via the <code>hyved</code> binary</li>
+        <li>The <code>.env</code> file is not tracked by git and should never be shared or committed</li>
+        <li>On startup, the dashboard imports the key into hyved's local "test" keyring for Cosmos SDK transactions</li>
+      </ul>
+    </div>
+
+    <div class="alert alert-info" style="font-size:12px;line-height:1.5;margin-top:8px">
+      <strong>What the key enables:</strong>
+      <ul style="margin:6px 0 0 16px">
+        <li>Claim staking rewards and commission</li>
+        <li>Delegate, redelegate, and undelegate HYVE</li>
+        <li>Auto-compound rewards on a configured schedule</li>
+        <li>Vote on governance proposals</li>
+        <li>Interact with SHADE token contracts (claim, approve, transfer)</li>
+        <li>Sign any Cosmos SDK transaction via the dashboard</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="alert alert-info" id="keySkipNote" style="display:none;font-size:13px;line-height:1.6">
+    <strong>Read-Only Mode</strong><br>
+    The dashboard will start without transaction signing. All monitoring features work normally —
+    you'll see validator status, metrics, uptime, peer info, governance proposals, and more.<br><br>
+    You can add your private key later by editing:<br>
+    <code style="color:var(--text1)">~/.local/share/hyve-dashboard/.env</code><br><br>
+    Set the <code>VALIDATOR_PRIVATE_KEY</code> variable to your 64-character hex key, then restart the service:<br>
+    <code style="color:var(--text1)">sudo systemctl restart hyve-dashboard</code>
+  </div>
+</div>
+
+<!-- Step 5: Services -->
+<div class="step-panel" id="step-5">
+  <div class="step-title">Install & Start Services</div>
+  <div class="step-desc">
+    The dashboard runs as two systemd services that start automatically when your machine boots.
+    This is the recommended way to run both the node and the dashboard — it ensures they survive
+    reboots and restart automatically if they crash.
+  </div>
+
+  <div style="margin-bottom:16px">
+    <div class="check-row" style="flex-direction:column;align-items:flex-start;gap:4px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="icon">⚙️</span>
+        <span class="label"><strong>hyve-node.service</strong></span>
+      </div>
+      <div style="padding-left:32px;color:var(--text2);font-size:12px;line-height:1.5">
+        Manages the <code>hyved</code> validator process. Sets up the correct environment
+        (LD_LIBRARY_PATH, working directory) and redirects node logs to
+        <code>~/.config/hyve-node/logs/app.log</code>. Restarts automatically on failure
+        with a 10-second delay.
+      </div>
+    </div>
+    <div class="check-row" style="flex-direction:column;align-items:flex-start;gap:4px;margin-top:4px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="icon">📊</span>
+        <span class="label"><strong>hyve-dashboard.service</strong></span>
+      </div>
+      <div style="padding-left:32px;color:var(--text2);font-size:12px;line-height:1.5">
+        Runs the Python web dashboard on port 8420 using Uvicorn. Depends on
+        <code>hyve-node.service</code> — the dashboard won't start unless the node service
+        is active. Serves the web UI, REST API, WebSocket feeds, and handles all
+        blockchain interactions. Restarts automatically on failure with a 5-second delay.
+      </div>
+    </div>
+  </div>
+
+  <div class="alert alert-info" style="font-size:12px;line-height:1.6;margin-bottom:16px">
+    <strong>What happens when you click Install:</strong>
+    <ol style="margin:6px 0 0 16px">
+      <li>Your <code>.env</code> configuration file is saved with the settings from the previous step</li>
+      <li>Service unit files are generated with your username and node path substituted in</li>
+      <li>Services are copied to <code>/etc/systemd/system/</code> (requires sudo)</li>
+      <li>Both services are enabled to start on boot</li>
+      <li>The node service is started (if not already running)</li>
+      <li>The dashboard service is started</li>
+      <li>If PostgreSQL is available, the database and user are created automatically</li>
+    </ol>
+    <div style="margin-top:8px">
+      <strong>Note:</strong> A password dialog will appear asking for your system password.
+      This is required to install systemd service files to <code>/etc/systemd/system/</code>
+      and manage services. You only need to authenticate once.
+    </div>
+  </div>
+
+  <div id="dbSetupSection" style="display:none;margin-bottom:16px">
+    <div class="alert alert-ok" style="font-size:13px">
+      <strong>PostgreSQL Detected</strong> — 
+      Full metrics storage is available. The database will be set up automatically when you install services, or you can set it up manually first:
+      <button class="btn" onclick="doSetupDb()" id="setupDbBtn" style="margin-left:8px;padding:4px 14px;vertical-align:middle">Set Up Database Now</button>
+    </div>
+    <div id="dbResult"></div>
+    <div style="font-size:11px;color:var(--text3);margin-top:6px">
+      Creates PostgreSQL user <code>hyvedash</code> and database <code>hyvedash</code>.
+      The dashboard will automatically create all required tables on first startup.
+    </div>
+  </div>
+
+  <button class="btn btn-primary" onclick="doInstallServices()" id="installSvcBtn">Install & Start Services</button>
+  <div class="terminal" id="svcTerminal" style="display:none"></div>
+  <div id="svcResult" style="margin-top:12px"></div>
+
+  <div class="alert alert-info" style="font-size:12px;margin-top:16px;display:none" id="svcManualHelp">
+    <strong>Manual Service Management</strong><br>
+    After installation, you can manage services with these commands:
+    <div style="margin-top:8px;font-family:monospace;font-size:11px;line-height:1.8">
+      <code>sudo systemctl status hyve-dashboard</code> — Check if dashboard is running<br>
+      <code>sudo systemctl restart hyve-dashboard</code> — Restart the dashboard<br>
+      <code>sudo systemctl stop hyve-dashboard</code> — Stop the dashboard<br>
+      <code>sudo journalctl -u hyve-dashboard -f</code> — View live dashboard logs<br>
+      <code>sudo systemctl status hyve-node</code> — Check if node is running<br>
+      <code>sudo journalctl -u hyve-node -f</code> — View live node logs
+    </div>
+  </div>
+</div>
+
+<!-- Step 6: Complete -->
+<div class="step-panel" id="step-6">
+  <div class="step-title">Setup Complete!</div>
+  <div class="step-desc">
+    Your Hyve Validator Dashboard is installed, configured, and running. You can now access
+    the full dashboard interface to monitor your validator, manage staking, and more.
+  </div>
+
+  <div class="cred-box" id="credBox" style="display:none">
+    <div style="font-size:14px;font-weight:600;margin-bottom:16px;color:var(--green)">Login Credentials</div>
+    <div class="label">Username</div>
+    <div class="value">admin</div>
+    <div class="label">Password</div>
+    <div class="value" id="adminPass">—</div>
+    <div style="font-size:12px;color:var(--text3);margin-top:12px;line-height:1.5">
+      Save this password now! It was auto-generated on first startup.<br>
+      You can change it from the dashboard's Settings tab after logging in.
+    </div>
+  </div>
+
+  <div id="noCreds" style="display:none">
+    <div class="alert alert-info" style="line-height:1.6">
+      <strong>Finding your password:</strong><br>
+      The admin password was printed to the service log on first startup. To retrieve it, run:<br>
+      <code style="color:var(--text1);display:block;margin:8px 0;padding:8px;background:rgba(0,0,0,0.3);border-radius:4px">sudo journalctl -u hyve-dashboard --no-pager -n 200 | grep "Admin password"</code>
+      If you can't find it, you can reset the password by deleting the auth file and restarting:<br>
+      <code style="color:var(--text1);display:block;margin:8px 0;padding:8px;background:rgba(0,0,0,0.3);border-radius:4px">sudo rm ~/.local/share/hyve-dashboard/.auth.json && sudo systemctl restart hyve-dashboard</code>
+      A new password will be generated and printed to the log.
+    </div>
+  </div>
+
+  <div style="margin:24px 0">
+    <div class="check-row">
+      <span class="icon">🌐</span>
+      <span class="label">Dashboard URL: <strong style="color:var(--cyan)">http://127.0.0.1:8420</strong></span>
+    </div>
+  </div>
+
+  <div class="alert alert-info" style="font-size:12px;line-height:1.6">
+    <strong>Dashboard Features</strong><br>
+    Here's what's available in your new dashboard:
+    <ul style="margin:8px 0 0 16px">
+      <li><strong>Overview Tab</strong> — Live validator status, signed blocks, voting power, uptime percentage, CPU/memory/disk metrics with historical charts</li>
+      <li><strong>Staking Tab</strong> — Delegate, redelegate, undelegate HYVE. Configure auto-compound. View delegation breakdown and staking history</li>
+      <li><strong>Signing Tab</strong> — Track block signing performance, missed blocks, current signing window, jailing threshold monitor</li>
+      <li><strong>SHADE Tab</strong> — View SHADE token balance, claim from emission contract, approve/transfer SHADE tokens</li>
+      <li><strong>Governance Tab</strong> — View active and past proposals, vote Yes/No/Abstain/Veto, track community voting trends</li>
+      <li><strong>Network Tab</strong> — Connected peers, peer geolocation map, network health, validator set changes</li>
+      <li><strong>Logs Tab</strong> — Live streaming node logs in the browser, searchable and filterable</li>
+      <li><strong>Settings Tab</strong> — Change password, configure Discord webhook alerts, manage alert conditions, maintenance notes/journal</li>
+      <li><strong>Failover Tab</strong> — Configure a backup validator node, monitor its status, trigger failover if primary goes down</li>
+      <li><strong>Upgrades Tab</strong> — Track chain upgrade proposals, download new binaries, manage upgrade lifecycle</li>
+    </ul>
+  </div>
+
+  <div class="alert alert-info" style="font-size:12px;line-height:1.6;margin-top:12px">
+    <strong>Useful Commands Reference</strong>
+    <div style="margin-top:8px;font-family:monospace;font-size:11px;line-height:2">
+      <code>sudo systemctl status hyve-dashboard</code> — Check dashboard status<br>
+      <code>sudo systemctl restart hyve-dashboard</code> — Restart dashboard<br>
+      <code>sudo systemctl status hyve-node</code> — Check node status<br>
+      <code>sudo systemctl restart hyve-node</code> — Restart node<br>
+      <code>sudo journalctl -u hyve-dashboard -f</code> — Stream dashboard logs<br>
+      <code>sudo journalctl -u hyve-node -f</code> — Stream node logs<br>
+      <code>sudo journalctl -u hyve-dashboard | grep "Admin password"</code> — Find admin password
+    </div>
+  </div>
+
+  <div class="alert alert-info" style="font-size:12px;line-height:1.6;margin-top:12px">
+    <strong>Configuration Files</strong>
+    <div style="margin-top:8px;font-family:monospace;font-size:11px;line-height:2">
+      <code>~/.local/share/hyve-dashboard/.env</code> — Private key and environment config<br>
+      <code>~/.local/share/hyve-dashboard/.auth.json</code> — Dashboard login credentials<br>
+      <code>~/.local/share/hyve-dashboard/server.py</code> — Backend server (do not edit unless you know what you're doing)<br>
+      <code>~/.local/share/hyve-dashboard/dashboard.html</code> — Frontend UI<br>
+      <code>/etc/systemd/system/hyve-node.service</code> — Node systemd unit<br>
+      <code>/etc/systemd/system/hyve-dashboard.service</code> — Dashboard systemd unit
+    </div>
+  </div>
+
+  <div class="step-desc" style="margin-top:16px;font-size:13px;color:var(--text3)">
+    You can re-run this setup wizard at any time from the Dashboard menu → Re-run Setup
+    or by right-clicking the system tray icon.
+  </div>
+</div>
+
+</div><!-- /content -->
+
+<!-- Footer -->
+<div class="footer">
+  <button class="btn" id="btnBack" onclick="prevStep()" style="display:none">Back</button>
+  <button class="btn btn-primary" id="btnNext" onclick="nextStep()">Get Started</button>
+</div>
+
+</div><!-- /main -->
+
+<script>
+// ── State ──
+let currentStep = 0;
+const totalSteps = 7;
+let defaults = {};
+let sysResults = null;
+let nodeDir = '';
+let nodeOk = false;
+let depsOk = false;
+let keyOpt = 0; // 0=enter, 1=skip
+let svcOk = false;
+let hasPostgres = false;
+let adminPassword = null;
+
+// ── Init ──
+(async () => {
+  defaults = await window.hyve.getDefaults();
+  document.getElementById('welcomeRuntimeDir').textContent = defaults.runtimeDir;
+  document.getElementById('nodeDirInput').value = defaults.nodeDir;
+  nodeDir = defaults.nodeDir;
+
+  window.hyve.onInstallLog((msg) => {
+    // Append to visible terminal
+    for (const term of ['sysTerminal', 'depsTerminal', 'svcTerminal']) {
+      const el = document.getElementById(term);
+      if (el && el.style.display !== 'none') {
+        el.textContent += msg + '\n';
+        el.scrollTop = el.scrollHeight;
+      }
+    }
+  });
+})();
+
+// ── Navigation ──
+function updateUI() {
+  // Step list
+  document.querySelectorAll('.step-item').forEach((el, i) => {
+    el.classList.remove('active', 'done');
+    if (i === currentStep) el.classList.add('active');
+    else if (i < currentStep) el.classList.add('done');
+  });
+
+  // Panels
+  document.querySelectorAll('.step-panel').forEach((el, i) => {
+    el.classList.toggle('active', i === currentStep);
+  });
+
+  // Buttons
+  document.getElementById('btnBack').style.display = currentStep > 0 && currentStep < totalSteps - 1 ? '' : 'none';
+  const next = document.getElementById('btnNext');
+
+  if (currentStep === 0) {
+    next.textContent = 'Get Started';
+    next.className = 'btn btn-primary';
+    next.disabled = false;
+  } else if (currentStep === totalSteps - 1) {
+    next.textContent = 'Open Dashboard';
+    next.className = 'btn btn-green';
+    next.disabled = false;
+  } else {
+    next.textContent = 'Next';
+    next.className = 'btn btn-primary';
+    next.disabled = !canProceed();
+  }
+}
+
+function canProceed() {
+  switch (currentStep) {
+    case 1: return sysResults && sysResults.python.ok && sysResults.venv.ok && sysResults.curl.ok;
+    case 2: return nodeOk;
+    case 3: return depsOk;
+    case 4: return true; // key is optional
+    case 5: return svcOk;
+    default: return true;
+  }
+}
+
+async function nextStep() {
+  if (currentStep === totalSteps - 1) {
+    // Final step — open dashboard
+    await window.hyve.markSetupComplete();
+    await window.hyve.openDashboard();
+    return;
+  }
+
+  currentStep++;
+
+  // Run step-specific actions on enter
+  if (currentStep === 1) doSystemCheck();
+  if (currentStep === 5 && hasPostgres) {
+    document.getElementById('dbSetupSection').style.display = '';
+  }
+
+  updateUI();
+}
+
+function prevStep() {
+  if (currentStep > 0) {
+    currentStep--;
+    updateUI();
+  }
+}
+
+// ── Step 1: System Check ──
+async function doSystemCheck() {
+  const container = document.getElementById('sysChecks');
+  container.innerHTML = '<div class="check-row check-wait"><span class="icon"><span class="spinner"></span></span><span class="label">Checking system requirements...</span></div>';
+
+  sysResults = await window.hyve.checkSystem();
+  hasPostgres = sysResults.postgres.ok;
+
+  let html = '';
+  const row = (ok, label, detail) => {
+    const cls = ok ? 'check-ok' : 'check-fail';
+    const ico = ok ? '✓' : '✗';
+    return `<div class="check-row ${cls}"><span class="icon">${ico}</span><span class="label">${label}</span><span class="detail">${detail||''}</span></div>`;
+  };
+  const warnRow = (label, detail) =>
+    `<div class="check-row check-warn"><span class="icon">⚠</span><span class="label">${label}</span><span class="detail">${detail||''}</span></div>`;
+
+  html += row(sysResults.python.ok, 'Python 3.10+', sysResults.python.version || 'Not found');
+  html += row(sysResults.venv.ok, 'python3-venv', sysResults.venv.ok ? 'Installed' : 'Not installed');
+  html += row(sysResults.curl.ok, 'curl', sysResults.curl.ok ? 'Installed' : 'Not found');
+
+  if (sysResults.postgres.ok) {
+    html += row(true, 'PostgreSQL (optional)', 'Full metrics history');
+  } else {
+    html += warnRow('PostgreSQL (optional)', 'Not found — will use JSON storage');
+  }
+
+  container.innerHTML = html;
+
+  const result = document.getElementById('sysCheckResult');
+  if (canProceed()) {
+    result.innerHTML = '<div class="alert alert-ok">All required system packages are installed. You\'re ready to continue.</div>';
+    document.getElementById('recheckBtn').style.display = 'none';
+    document.getElementById('installSysDepsBtn').style.display = 'none';
+  } else {
+    let missing = [];
+    if (!sysResults.python.ok) missing.push('python3');
+    if (!sysResults.venv.ok) missing.push('python3-venv');
+    if (!sysResults.curl.ok) missing.push('curl');
+    window._missingSysPkgs = missing;
+    result.innerHTML = `<div class="alert alert-warn">
+      <strong>Missing packages:</strong> ${missing.join(', ')}<br>
+      Click the button below to install them automatically (requires authentication).
+    </div>`;
+    document.getElementById('installSysDepsBtn').style.display = '';
+    document.getElementById('recheckBtn').style.display = '';
+  }
+
+  updateUI();
+}
+
+// ── Step 1: Install System Deps ──
+async function doInstallSysDeps() {
+  const btn = document.getElementById('installSysDepsBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Installing...';
+
+  const term = document.getElementById('sysTerminal');
+  term.style.display = '';
+  term.textContent = '';
+
+  // Listen for install logs in the sys terminal
+  const origListener = window._sysLogListener;
+  window._sysLogListener = (msg) => {
+    term.textContent += msg + '\n';
+    term.scrollTop = term.scrollHeight;
+  };
+
+  const r = await window.hyve.installSystemDeps({ missing: window._missingSysPkgs || [] });
+
+  if (r.ok) {
+    term.textContent += '\n✓ Installation complete — re-checking...\n';
+    btn.textContent = '✓ Installed';
+    // Auto re-check
+    await doSystemCheck();
+  } else {
+    term.textContent += '\n✗ Installation failed. You may need to install manually.\n';
+    btn.textContent = 'Retry';
+    btn.disabled = false;
+  }
+}
+
+// ── Step 2: Node Check ──
+async function doCheckNode() {
+  nodeDir = document.getElementById('nodeDirInput').value.trim();
+  if (!nodeDir) return;
+  // Expand ~
+  if (nodeDir.startsWith('~/')) nodeDir = defaults.home + nodeDir.slice(1);
+
+  const container = document.getElementById('nodeChecks');
+  container.innerHTML = '<div class="check-row check-wait"><span class="icon"><span class="spinner"></span></span><span class="label">Checking node...</span></div>';
+
+  const r = await window.hyve.checkNode(nodeDir);
+
+  const row = (ok, label, detail) => {
+    if (ok === null) return `<div class="check-row check-warn"><span class="icon">⚠</span><span class="label">${label}</span><span class="detail">${detail||''}</span></div>`;
+    const cls = ok ? 'check-ok' : 'check-fail';
+    const ico = ok ? '✓' : '✗';
+    return `<div class="check-row ${cls}"><span class="icon">${ico}</span><span class="label">${label}</span><span class="detail">${detail||''}</span></div>`;
+  };
+
+  let html = '';
+  html += row(r.dirExists, 'Node directory', r.dirExists ? nodeDir : 'Not found');
+  html += row(r.binaryExists, 'hyved binary', r.binaryExists ? 'Found' : 'Not found');
+  html += row(r.configExists, 'Node config', r.configExists ? 'Found' : 'Not found');
+  html += row(r.dataExists, 'Node data', r.dataExists ? 'Found' : 'Not found');
+
+  if (r.running) {
+    if (r.synced === true) html += row(true, 'Node status', `Synced (block ${r.height})`);
+    else if (r.synced === false) html += row(null, 'Node status', `Syncing (block ${r.height})`);
+    else html += row(null, 'Node status', 'Running (could not check sync)');
+  } else {
+    html += row(null, 'Node status', 'Not running (OK for setup)');
+  }
+
+  container.innerHTML = html;
+
+  nodeOk = r.dirExists && r.binaryExists && r.configExists;
+  const result = document.getElementById('nodeCheckResult');
+  if (nodeOk) {
+    result.innerHTML = '<div class="alert alert-ok">Node found and validated. All required components are present.</div>';
+    document.getElementById('nodeHelpBox').style.display = 'none';
+  } else {
+    result.innerHTML = '<div class="alert alert-warn">Node installation appears incomplete. Make sure you\'ve set up and activated your validator using the Hyve Validator app first.</div>';
+    document.getElementById('nodeHelpBox').style.display = '';
+  }
+
+  updateUI();
+}
+
+// ── Step 3: Install Deps ──
+async function doInstallDeps() {
+  const btn = document.getElementById('installDepsBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Installing...';
+
+  const term = document.getElementById('depsTerminal');
+  term.style.display = '';
+  term.textContent = '';
+
+  const r = await window.hyve.installDeps();
+  depsOk = r.ok;
+
+  const result = document.getElementById('depsResult');
+  if (r.ok) {
+    result.innerHTML = '<div class="alert alert-ok">Dependencies installed successfully.</div>';
+    btn.textContent = '✓ Installed';
+  } else {
+    result.innerHTML = `<div class="alert alert-warn">Installation failed: ${r.error || 'Unknown error'}<br>Check the output above for details.</div>`;
+    btn.textContent = 'Retry';
+    btn.disabled = false;
+  }
+
+  updateUI();
+}
+
+// ── Step 4: Key Config ──
+function selectKeyOpt(idx) {
+  keyOpt = idx;
+  document.querySelectorAll('#keyChoice .radio-opt').forEach((el, i) => {
+    el.classList.toggle('selected', i === idx);
+  });
+  document.getElementById('keyInputSection').style.display = idx === 0 ? '' : 'none';
+  document.getElementById('keySkipNote').style.display = idx === 1 ? '' : 'none';
+}
+
+function validateKey() {
+  const input = document.getElementById('privKeyInput');
+  let key = input.value.trim().replace(/^0x/i, '');
+  const valid = /^[0-9a-fA-F]{64}$/.test(key);
+  const el = document.getElementById('keyValidation');
+  if (!input.value) { el.innerHTML = ''; return null; }
+  if (valid) {
+    el.innerHTML = `<div class="alert alert-ok">Key validated (${key.slice(0,4)}...${key.slice(-4)})</div>`;
+    return key;
+  } else {
+    el.innerHTML = '<div class="alert alert-warn">Invalid format. Expected 64 hex characters, no 0x prefix.</div>';
+    return null;
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const ki = document.getElementById('privKeyInput');
+  if (ki) ki.addEventListener('input', validateKey);
+});
+
+// ── Step 5: Services ──
+async function doSetupDb() {
+  const btn = document.getElementById('setupDbBtn');
+  btn.disabled = true;
+  btn.textContent = 'Setting up...';
+  const r = await window.hyve.setupDatabase();
+  const el = document.getElementById('dbResult');
+  if (r.ok) el.innerHTML = '<div class="alert alert-ok" style="margin-top:8px">Database ready.</div>';
+  else el.innerHTML = '<div class="alert alert-warn" style="margin-top:8px">Some steps failed — dashboard will fall back to JSON storage.</div>';
+  btn.textContent = 'Done';
+}
+
+async function doInstallServices() {
+  // Save config first
+  let privKey = null;
+  if (keyOpt === 0) {
+    privKey = validateKey();
+    // Allow empty key (read-only mode)
+  }
+  await window.hyve.saveConfig({ privateKey: privKey, nodeDir });
+
+  const btn = document.getElementById('installSvcBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Installing...';
+
+  const term = document.getElementById('svcTerminal');
+  term.style.display = '';
+  term.textContent = '';
+
+  // Install services
+  const installResult = await window.hyve.installServices({ nodeDir });
+  if (!installResult.ok) {
+    document.getElementById('svcResult').innerHTML =
+      `<div class="alert alert-warn">Service installation failed: ${installResult.error}<br>You can install manually later with: <code>./install.sh</code></div>`;
+    btn.textContent = 'Retry';
+    btn.disabled = false;
+    return;
+  }
+
+  // Auto-setup database if PostgreSQL is available
+  if (hasPostgres) {
+    term.textContent += '\n';
+    try {
+      await window.hyve.setupDatabase();
+    } catch {}
+  }
+
+  // Start services
+  term.textContent += '\n';
+  const startResult = await window.hyve.startServices();
+  if (!startResult.ok) {
+    document.getElementById('svcResult').innerHTML =
+      `<div class="alert alert-warn">Services installed but failed to start: ${startResult.error || 'Unknown error'}<br>Try: <code>sudo systemctl restart hyve-dashboard</code></div>`;
+    document.getElementById('svcManualHelp').style.display = '';
+    btn.textContent = 'Retry Start';
+    btn.disabled = false;
+    // Still mark as OK so user can proceed — services are installed, just need a manual start
+    svcOk = true;
+    updateUI();
+    return;
+  }
+  svcOk = true;
+  adminPassword = startResult.password;
+
+  document.getElementById('svcResult').innerHTML = '<div class="alert alert-ok">Services installed and started successfully. Your dashboard is now live!</div>';
+  document.getElementById('svcManualHelp').style.display = '';
+  btn.textContent = '✓ Done';
+
+  updateUI();
+}
+
+// ── Step 6: Show Complete ──
+const origNextStep = nextStep;
+nextStep = async function() {
+  if (currentStep === 5 && svcOk) {
+    // Moving to complete step — populate creds
+    currentStep = 6;
+    if (adminPassword) {
+      document.getElementById('credBox').style.display = '';
+      document.getElementById('adminPass').textContent = adminPassword;
+      document.getElementById('noCreds').style.display = 'none';
+    } else {
+      document.getElementById('credBox').style.display = 'none';
+      document.getElementById('noCreds').style.display = '';
+    }
+    updateUI();
+    return;
+  }
+  await origNextStep();
+};
+
+// Init UI
+updateUI();
+</script>
+</body>
+</html>
