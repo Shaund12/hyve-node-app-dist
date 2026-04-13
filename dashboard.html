@@ -772,6 +772,7 @@ kbd{display:inline-flex;align-items:center;padding:1px 5px;border-radius:4px;fon
           <div class="tab" data-tab="alertcfg" onclick="switchTab(this)">&#128276; Alert Config</div>
           <div class="tab" data-tab="appearance" onclick="switchTab(this)">&#127912; Themes</div>
           <div class="tab" data-tab="exportbackup" onclick="switchTab(this)">&#128230; Export/Backup</div>
+          <div class="tab" data-tab="mobileapp" onclick="switchTab(this)">&#128241; Mobile App</div>
           <div class="tab" data-tab="logs" onclick="switchTab(this)">&#128220; Logs</div>
         </div>
       </div>
@@ -1362,6 +1363,57 @@ kbd{display:inline-flex;align-items:center;padding:1px 5px;border-radius:4px;fon
       </div>
     </div>
 
+    <!-- Mobile App -->
+    <div class="tab-content" id="tab-mobileapp" style="display:none">
+      <div class="card">
+        <div class="card-title">&#128241; Hyve Mobile Dashboard</div>
+        <p style="color:var(--text2);font-size:13px;line-height:1.6;margin-bottom:16px">
+          Monitor your validator from your phone. The mobile app connects to this dashboard
+          server over your network — you'll need your server accessible via a domain or IP.
+        </p>
+        <div id="mobileAppInfo" style="margin-bottom:16px">
+          <div style="color:var(--text3);font-size:12px">Loading...</div>
+        </div>
+        <div id="mobileQrSection" style="display:none;text-align:center;margin:20px 0">
+          <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px">
+            <div style="font-size:12px;color:var(--text2);margin-bottom:8px">Download link &mdash; open on your phone or send to yourself:</div>
+            <code id="mobileDownloadUrl" style="display:block;background:#000;color:var(--green);padding:10px;border-radius:6px;font-size:13px;word-break:break-all;user-select:all"></code>
+            <button class="btn btn-outline" onclick="copyMobileUrl()" style="margin-top:10px;font-size:12px">&#128203; Copy Link</button>
+            <span id="mobileCopyMsg" style="color:var(--green);font-size:11px;margin-left:8px;display:none">Copied!</span>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">&#128268; Connection Setup</div>
+        <p style="color:var(--text2);font-size:13px;line-height:1.6;margin-bottom:12px">
+          After installing the app, you'll need to enter your dashboard server address.
+          The mobile app connects to the same API that powers this web dashboard.
+        </p>
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;font-size:12px;line-height:1.8">
+          <strong style="color:var(--text1)">Requirements:</strong>
+          <ul style="margin:6px 0 0 16px;color:var(--text2)">
+            <li>A domain name pointing to this server (e.g. <code>validator.yourdomain.com</code>)</li>
+            <li>Port <code>8420</code> open / forwarded (or reverse proxy via nginx/caddy)</li>
+            <li>HTTPS recommended for security (use Let's Encrypt + reverse proxy)</li>
+          </ul>
+          <div style="margin-top:12px">
+            <strong style="color:var(--text1)">Quick Reverse Proxy (Caddy):</strong>
+            <pre style="background:#000;color:var(--green);padding:10px;border-radius:6px;margin-top:6px;overflow-x:auto;font-size:11px">validator.yourdomain.com {
+    reverse_proxy 127.0.0.1:8420
+}</pre>
+          </div>
+          <div style="margin-top:12px">
+            <strong style="color:var(--text1)">In the Mobile App:</strong>
+            <ol style="margin:4px 0 0 16px;color:var(--text2)">
+              <li>Open the app and enter: <code>https://validator.yourdomain.com</code></li>
+              <li>Log in with the same admin password you use for this dashboard</li>
+              <li>Done — all features work over your secure connection</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Logs -->
     <div class="tab-content" id="tab-logs" style="display:none">
       <div class="card" style="padding:0;overflow:hidden">
@@ -1898,6 +1950,7 @@ function switchTab(el){
   if(el.dataset.tab==='alerthistory') loadAlertHistory();
   if(el.dataset.tab==='restarts') loadRestarts();
   if(el.dataset.tab==='failover') loadFailover();
+  if(el.dataset.tab==='mobileapp') loadMobileApp();
 }
 
 // ── Chart Setup ──
@@ -2789,6 +2842,48 @@ function exportTaxCSV(){
   showToast('CSV exported','success');
 }
 
+// ── Mobile App ──
+let mobileAppLoaded=false;
+async function loadMobileApp(){
+  if(mobileAppLoaded) return;
+  const box=document.getElementById('mobileAppInfo');
+  try{
+    const res=await fetch('/api/mobile/info');
+    const d=await res.json();
+    if(d.apk_available){
+      const sizeMB=(d.apk_size/(1024*1024)).toFixed(1);
+      box.innerHTML=`
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <a href="${d.download_url}" class="btn" download style="display:inline-flex;align-items:center;gap:6px;text-decoration:none">
+            &#11015; Download APK <span style="font-size:11px;opacity:.7">(${sizeMB} MB)</span>
+          </a>
+          <button class="btn btn-outline" onclick="showMobileQr()">&#128279; Show Download Link</button>
+        </div>
+        <p style="color:var(--text3);font-size:11px;margin-top:8px">
+          Android only &bull; Allow &ldquo;Install from unknown sources&rdquo; in phone settings
+        </p>`;
+      mobileAppLoaded=true;
+    } else {
+      box.innerHTML='<div style="color:var(--yellow);font-size:12px">&#9888; No APK file found on server. Place <code>HyveDashboard.apk</code> in the dashboard directory.</div>';
+    }
+  }catch(e){
+    box.innerHTML='<div style="color:var(--red);font-size:12px">Failed to load mobile app info</div>';
+  }
+}
+function showMobileQr(){
+  const sect=document.getElementById('mobileQrSection');
+  if(sect.style.display!=='none'){sect.style.display='none';return;}
+  sect.style.display='';
+  document.getElementById('mobileDownloadUrl').textContent=location.origin+'/download/mobile';
+}
+function copyMobileUrl(){
+  const url=location.origin+'/download/mobile';
+  navigator.clipboard.writeText(url).then(()=>{
+    const msg=document.getElementById('mobileCopyMsg');msg.style.display='inline';
+    setTimeout(()=>msg.style.display='none',2000);
+  });
+}
+
 // ── Alert Config ──
 async function loadAlertConfig(){
   try{
@@ -3217,6 +3312,7 @@ const cmdActions=[
   {icon:'\u{1F4B5}',label:'Tax Report',tab:'taxreport',hint:'Income report'},
   {icon:'\u{1F4E6}',label:'Export/Backup',tab:'exportbackup',hint:'Config backup'},
   {icon:'\u{1F514}',label:'Alert Config',tab:'alertcfg',hint:'Alert settings'},
+  {icon:'\u{1F4F1}',label:'Mobile App',tab:'mobileapp',hint:'Download mobile app'},
   {icon:'\u{1F4DC}',label:'Logs',tab:'logs',hint:'Node logs'},
   {icon:'\u{1F4C5}',label:'Timeline',tab:'timeline',hint:'Activity timeline'},
   {icon:'\u2696',label:'Compare',tab:'compare',hint:'Validator comparison'},

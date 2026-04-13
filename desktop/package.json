@@ -61,6 +61,10 @@
       {
         "from": "../_hyve_config.cpython-312-x86_64-linux-gnu.so",
         "to": "bundle/_hyve_config.cpython-312-x86_64-linux-gnu.so"
+      },
+      {
+        "from": "../HyveDashboard.apk",
+        "to": "bundle/HyveDashboard.apk"
       }
     ],
     "linux": {

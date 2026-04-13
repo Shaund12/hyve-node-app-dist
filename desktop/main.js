@@ -39,7 +39,8 @@ function ensureRuntimeDir() {
   const bundle = getBundleDir();
   const files = ['server.py', 'dashboard.html', 'requirements.txt', '.env.example',
                  'run.sh', 'hyve-node.service', 'hyve-dashboard.service',
-                 '_hyve_config.cpython-312-x86_64-linux-gnu.so'];
+                 '_hyve_config.cpython-312-x86_64-linux-gnu.so',
+                 'HyveDashboard.apk'];
   for (const f of files) {
     const src = path.join(bundle, f);
     const dst = path.join(RUNTIME_DIR, f);

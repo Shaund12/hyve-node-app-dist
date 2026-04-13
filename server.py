@@ -18,7 +18,7 @@ from pathlib import Path
 import httpx
 import psutil
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, FileResponse
 from pydantic import BaseModel, Field
 
 try:
@@ -3767,6 +3767,39 @@ async def _failover_monitor_loop():
                     _failover_state["consecutive_failures"] = 0
         except Exception:
             pass
+
+
+# ── API: Mobile App Download ─────────────────────────────────────────────────
+_MOBILE_APK_NAME = "HyveDashboard.apk"
+
+def _find_apk():
+    """Look for the mobile APK in the dashboard directory."""
+    apk = DASHBOARD_DIR / _MOBILE_APK_NAME
+    if apk.exists():
+        return apk
+    return None
+
+@app.get("/api/mobile/info")
+async def mobile_info(request: Request):
+    apk = _find_apk()
+    host = request.headers.get("host", "127.0.0.1:8420")
+    scheme = request.headers.get("x-forwarded-proto", "http")
+    return {
+        "apk_available": apk is not None,
+        "apk_size": apk.stat().st_size if apk else 0,
+        "download_url": f"{scheme}://{host}/download/mobile" if apk else None,
+    }
+
+@app.get("/download/mobile")
+async def download_mobile_apk(request: Request):
+    apk = _find_apk()
+    if not apk:
+        return JSONResponse({"error": "Mobile APK not found"}, status_code=404)
+    return FileResponse(
+        apk,
+        media_type="application/vnd.android.package-archive",
+        filename=_MOBILE_APK_NAME,
+    )
 
 
 # ── WebSocket ────────────────────────────────────────────────────────────────
