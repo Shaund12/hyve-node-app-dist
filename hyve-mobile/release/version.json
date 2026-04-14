@@ -1,7 +1,8 @@
 {
-  "version": "1.4",
-  "apk": "hyve-mobile-1.4.apk",
-  "changelog": "Vector icons, sparkline charts, delegate/redelegate, alert history, vote tracker, node restart history, pin notes, Discord webhook setup, offline banner, haptic feedback, WS reconnecting indicator",
-  "build_date": "2026-04-12",
-  "size_bytes": 69087954
+  "version": "1.6.1",
+  "apk": "hyve-mobile-1.6.1.apk",
+  "url": "https://validator.pyvendr.com/mobile/release/hyve-mobile-1.6.1.apk",
+  "changelog": "Fix rewards/commission decimal display for very small values",
+  "build_date": "2026-04-14",
+  "size_bytes": 69053438
 }
