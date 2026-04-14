@@ -694,6 +694,16 @@ kbd{display:inline-flex;align-items:center;padding:1px 5px;border-radius:4px;fon
       <div class="chart-wrap"><canvas id="heightChart"></canvas></div>
     </div>
   </div>
+  <div class="grid g2" style="margin-top:16px">
+    <div class="card">
+      <div class="card-header"><span class="card-title">&#128187; System Resources</span></div>
+      <div class="chart-wrap"><canvas id="sysResourceChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-title">&#128176; Staking Balance</span></div>
+      <div class="chart-wrap"><canvas id="stakingChart"></canvas></div>
+    </div>
+  </div>
 
   <!-- TABS -->
   <div class="section">
@@ -920,14 +930,23 @@ kbd{display:inline-flex;align-items:center;padding:1px 5px;border-radius:4px;fon
 
     <!-- Rewards History Chart -->
     <div class="tab-content" id="tab-rewardshist" style="display:none">
-      <div class="grid g2">
-        <div class="card"><div class="card-header"><span class="card-title">&#128200; Rewards Over 7 Days</span></div><div class="chart-wrap" style="height:280px"><canvas id="rewardsHistChart"></canvas></div></div>
-        <div class="card"><div class="card-header"><span class="card-title">&#128202; Delegated Over 7 Days</span></div><div class="chart-wrap" style="height:280px"><canvas id="delegatedHistChart"></canvas></div></div>
+      <div class="grid g4">
+        <div class="card"><div class="card-header"><span class="card-title">&#128176; Total Earned</span></div><div class="metric-value green" id="rewHistTotal">-</div><div class="metric-label">HYVE all-time (comm+rew)</div></div>
+        <div class="card"><div class="card-header"><span class="card-title">&#128197; Today</span></div><div class="metric-value cyan" id="rewHistToday">-</div><div class="metric-label">HYVE earned today</div></div>
+        <div class="card"><div class="card-header"><span class="card-title">&#128200; 7-Day Total</span></div><div class="metric-value purple" id="rewHistWeek">-</div><div class="metric-label">HYVE this week</div></div>
+        <div class="card"><div class="card-header"><span class="card-title">&#9889; Daily Avg</span></div><div class="metric-value orange" id="rewHistAvg">-</div><div class="metric-label">HYVE/day average</div></div>
+      </div>
+      <div class="card" style="margin-top:16px"><div class="card-header"><span class="card-title">&#128200; Cumulative Earnings (7 Days)</span></div><div class="chart-wrap" style="height:300px"><canvas id="cumulativeEarnChart"></canvas></div></div>
+      <div class="card" style="margin-top:16px"><div class="card-header"><span class="card-title">&#128202; Daily Earnings Breakdown</span></div><div class="chart-wrap" style="height:260px"><canvas id="dailyEarnChart"></canvas></div></div>
+      <div class="grid g2" style="margin-top:16px">
+        <div class="card"><div class="card-header"><span class="card-title">&#128176; Pending Rewards (live)</span></div><div class="chart-wrap" style="height:260px"><canvas id="rewardsHistChart"></canvas></div></div>
+        <div class="card"><div class="card-header"><span class="card-title">&#128300; Pending Commission (live)</span></div><div class="chart-wrap" style="height:260px"><canvas id="commHistChart"></canvas></div></div>
       </div>
       <div class="grid g2" style="margin-top:16px">
-        <div class="card"><div class="card-header"><span class="card-title">&#9989; Uptime Over 7 Days</span></div><div class="chart-wrap" style="height:220px"><canvas id="uptimeHistChart"></canvas></div></div>
-        <div class="card"><div class="card-header"><span class="card-title">&#127793; SHADE Pending Over 7 Days</span></div><div class="chart-wrap" style="height:220px"><canvas id="shadeHistChart"></canvas></div></div>
+        <div class="card"><div class="card-header"><span class="card-title">&#128176; Delegated Balance</span></div><div class="chart-wrap" style="height:240px"><canvas id="delegatedHistChart"></canvas></div></div>
+        <div class="card"><div class="card-header"><span class="card-title">&#9989; Uptime %</span></div><div class="chart-wrap" style="height:240px"><canvas id="uptimeHistChart"></canvas></div></div>
       </div>
+      <div class="card" style="margin-top:16px"><div class="card-header"><span class="card-title">&#127793; SHADE Pending</span></div><div class="chart-wrap" style="height:220px"><canvas id="shadeHistChart"></canvas></div></div>
     </div>
 
     <!-- Performance Benchmarks -->
@@ -1514,11 +1533,11 @@ kbd{display:inline-flex;align-items:center;padding:1px 5px;border-radius:4px;fon
     <!-- Commission Income -->
     <div class="tab-content" id="tab-commission" style="display:none">
       <div class="grid g3">
-        <div class="card"><div class="card-header"><span class="card-title">&#128176; Total Earned</span></div><div class="metric-value green" id="commTotal">-</div><div class="metric-label">HYVE all-time commission</div></div>
-        <div class="card"><div class="card-header"><span class="card-title">&#128197; Today</span></div><div class="metric-value cyan" id="commToday">-</div><div class="metric-label">HYVE earned today</div></div>
-        <div class="card"><div class="card-header"><span class="card-title">&#128200; 7-Day Avg</span></div><div class="metric-value purple" id="commAvg7">-</div><div class="metric-label">HYVE/day average</div></div>
+        <div class="card"><div class="card-header"><span class="card-title">&#128176; Total Earned</span></div><div class="metric-value green" id="commTotal">-</div><div class="metric-label">HYVE all-time commission</div><div class="metric-value cyan" id="commTotalRew" style="font-size:16px;margin-top:4px">-</div><div class="metric-label">HYVE all-time rewards</div></div>
+        <div class="card"><div class="card-header"><span class="card-title">&#128197; Today</span></div><div class="metric-value cyan" id="commToday">-</div><div class="metric-label">HYVE commission today</div><div class="metric-value green" id="commTodayRew" style="font-size:16px;margin-top:4px">-</div><div class="metric-label">HYVE rewards today</div></div>
+        <div class="card"><div class="card-header"><span class="card-title">&#128200; 7-Day Avg</span></div><div class="metric-value purple" id="commAvg7">-</div><div class="metric-label">HYVE/day commission avg</div><div class="metric-value orange" id="commAvg7Rew" style="font-size:16px;margin-top:4px">-</div><div class="metric-label">HYVE/day rewards avg</div></div>
       </div>
-      <div class="card" style="margin-top:16px"><div class="card-header"><span class="card-title">Daily Commission Income</span></div><div class="chart-wrap"><canvas id="commChart"></canvas></div></div>
+      <div class="card" style="margin-top:16px"><div class="card-header"><span class="card-title">Daily Income</span></div><div class="chart-wrap"><canvas id="commChart"></canvas></div></div>
     </div>
 
     <!-- Consensus Participation -->
@@ -1571,12 +1590,28 @@ kbd{display:inline-flex;align-items:center;padding:1px 5px;border-radius:4px;fon
           </div>
         </div>
         <div class="card" style="align-self:start">
-          <div class="card-header"><span class="card-title">&#128161; How Upgrades Work</span></div>
-          <div style="font-size:12px;color:var(--text2);line-height:1.6">
-            <p style="margin:0 0 8px">When a governance proposal for a chain upgrade passes, the node halts at the specified block height and requires a new binary.</p>
-            <p style="margin:0 0 8px"><strong>1.</strong> Click <em>Download Latest Binary</em> to fetch the upgrade binary from the Hyve release server.</p>
-            <p style="margin:0 0 8px"><strong>2.</strong> Click <em>Apply Upgrade &amp; Restart</em> to swap the binary and restart the node.</p>
-            <p style="margin:0"><strong>3.</strong> If there are issues, use <em>Rollback</em> to restore the previous binary.</p>
+          <div class="card-header"><span class="card-title">&#9881; Binary Source</span></div>
+          <div style="padding:8px 0">
+            <div style="margin-bottom:10px">
+              <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:4px">Binary Variant</label>
+              <select id="ugVariantSelect" style="width:100%;padding:7px 10px;background:var(--bg2);color:var(--text1);border:1px solid var(--border);border-radius:6px;font-size:13px" onchange="onVariantChange()">
+                <option value="hyved">hyved (x86_64)</option>
+              </select>
+              <div id="ugVariantInfo" style="font-size:11px;color:var(--text3);margin-top:4px"></div>
+            </div>
+            <div style="margin-bottom:10px">
+              <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:4px">Manual URL Override <span style="color:var(--text3)">(optional)</span></label>
+              <input id="ugManualUrl" type="text" placeholder="https://example.com/binaries" style="width:100%;box-sizing:border-box;padding:7px 10px;background:var(--bg2);color:var(--text1);border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--mono)">
+              <div style="font-size:11px;color:var(--text3);margin-top:3px">Overrides the default release server URL</div>
+            </div>
+            <button class="primary" onclick="saveBinaryConfig()" style="width:100%;padding:7px">&#128190; Save Binary Config</button>
+            <div id="ugConfigResult" style="display:none;padding:6px 10px;border-radius:6px;margin-top:8px;font-size:12px"></div>
+          </div>
+          <div style="font-size:12px;color:var(--text2);line-height:1.6;border-top:1px solid var(--border);padding-top:8px;margin-top:4px">
+            <p style="margin:0 0 6px"><strong>&#128161; How Upgrades Work</strong></p>
+            <p style="margin:0 0 6px"><strong>1.</strong> Click <em>Download Latest Binary</em> to fetch the upgrade binary.</p>
+            <p style="margin:0 0 6px"><strong>2.</strong> Click <em>Apply Upgrade &amp; Restart</em> to swap and restart.</p>
+            <p style="margin:0"><strong>3.</strong> Use <em>Rollback</em> to restore the previous binary if needed.</p>
           </div>
         </div>
       </div>
@@ -1831,7 +1866,7 @@ kbd{display:inline-flex;align-items:center;padding:1px 5px;border-radius:4px;fon
 
 <script>
 let wsLive=null,wsLogs=null,lastHeight=0;
-let donutChart=null,rewardsChart=null,heightChart=null,projectionChart=null,signingRingChart=null;
+let donutChart=null,rewardsChart=null,heightChart=null,projectionChart=null,signingRingChart=null,sysResourceChart=null,stakingChart=null;
 let currentStaking={},currentStatus={},currentSigning={},currentShade={};
 let prevRewards=null,prevCommission=null;
 let historyData=[];
@@ -1844,17 +1879,32 @@ let calcAPR=0,pinnedTabs=[];
 // ── Number Formatting ──
 const fmt = n => {
   const v=Number(n);
-  if(v===0) return '0';
-  if(Math.abs(v)<0.000001) return v.toFixed(18).replace(/0+$/,'').replace(/\.$/,'');
-  if(Math.abs(v)<0.01) return v.toFixed(8).replace(/0+$/,'').replace(/\.$/,'');
-  if(Math.abs(v)<1) return v.toFixed(6).replace(/0+$/,'').replace(/\.$/,'');
+  if(v===0||isNaN(v)) return '0';
+  const a=Math.abs(v);
+  if(a<1e-8) return v.toFixed(12).replace(/0+$/,'').replace(/\.$/,'');
+  if(a<1e-6) return v.toFixed(10).replace(/0+$/,'').replace(/\.$/,'');
+  if(a<1e-4) return v.toFixed(8).replace(/0+$/,'').replace(/\.$/,'');
+  if(a<1) return v.toFixed(6).replace(/0+$/,'').replace(/\.$/,'');
+  return v.toLocaleString(undefined,{maximumFractionDigits:6});
+};
+const fmtPrecise = n => {
+  const v=Number(n);
+  if(v===0||isNaN(v)) return '0';
+  const a=Math.abs(v);
+  if(a<1e-8) return v.toFixed(12).replace(/0+$/,'').replace(/\.$/,'');
+  if(a<1e-4) return v.toFixed(10).replace(/0+$/,'').replace(/\.$/,'');
+  if(a<1) return v.toFixed(8).replace(/0+$/,'').replace(/\.$/,'');
   return v.toLocaleString(undefined,{maximumFractionDigits:6});
 };
 const fmtShort = n => {
   const v=Number(n);
   if(v>=1e6) return (v/1e6).toFixed(2)+'M';
   if(v>=1e3) return (v/1e3).toFixed(2)+'K';
-  if(Math.abs(v)<0.01 && v!==0) return v.toFixed(6);
+  if(v===0||isNaN(v)) return '0';
+  const a=Math.abs(v);
+  if(a<1e-8) return v.toFixed(10).replace(/0+$/,'').replace(/\.$/,'');
+  if(a<0.001) return v.toFixed(8).replace(/0+$/,'').replace(/\.$/,'');
+  if(a<0.01) return v.toFixed(6).replace(/0+$/,'').replace(/\.$/,'');
   return v.toFixed(2);
 };
 const fmtInt = n => Number(n).toLocaleString(undefined,{maximumFractionDigits:0});
@@ -1958,9 +2008,20 @@ function tc(v){return getComputedStyle(document.documentElement).getPropertyValu
 function tcA(hex,a){if(!hex||hex.charAt(0)!=='#')return hex;var r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);return'rgba('+r+','+g+','+b+','+a+')';}
 const chartTickFmt = v => {
   if(v===0) return '0';
-  if(Math.abs(v)<0.001) return v.toFixed(6);
-  if(Math.abs(v)<1) return v.toFixed(4);
+  const a=Math.abs(v);
+  if(a<1e-8) return v.toFixed(10).replace(/0+$/,'').replace(/\.$/,'');
+  if(a<1e-4) return v.toFixed(8).replace(/0+$/,'').replace(/\.$/,'');
+  if(a<1) return v.toFixed(4);
   return v.toLocaleString();
+};
+const chartTooltipFmt = (ctx) => {
+  const v=ctx.parsed.y;
+  if(v===0) return ctx.dataset.label+': 0';
+  const a=Math.abs(v);
+  if(a<1e-8) return ctx.dataset.label+': '+v.toFixed(12).replace(/0+$/,'').replace(/\.$/,'');
+  if(a<1e-4) return ctx.dataset.label+': '+v.toFixed(10).replace(/0+$/,'').replace(/\.$/,'');
+  if(a<1) return ctx.dataset.label+': '+v.toFixed(6).replace(/0+$/,'').replace(/\.$/,'');
+  return ctx.dataset.label+': '+v.toLocaleString();
 };
 const chartDefaults = {
   responsive:true, maintainAspectRatio:false,
@@ -1974,10 +2035,12 @@ const chartDefaults = {
 function initCharts(){
   var g=tc('--green'),p=tc('--purple'),o=tc('--orange'),pk=tc('--pink'),c=tc('--cyan'),t3=tc('--text3'),t2=tc('--text2'),bg4=tc('--bg4');
   donutChart=new Chart(document.getElementById('donutChart'),{type:'doughnut',data:{labels:['Staked','Rewards','Commission','Available'],datasets:[{data:[0,0,0,0],backgroundColor:[g,p,o,pk],borderWidth:0,cutout:'70%'}]},options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{display:false}}}});
-  rewardsChart=new Chart(document.getElementById('rewardsChart'),{type:'line',data:{labels:[],datasets:[{label:'Rewards',data:[],borderColor:p,backgroundColor:tcA(p,0.1),fill:true,tension:0.4,pointRadius:0},{label:'Commission',data:[],borderColor:o,backgroundColor:tcA(o,0.1),fill:true,tension:0.4,pointRadius:0}]},options:{...chartDefaults,interaction:{mode:'index',intersect:false}}});
-  heightChart=new Chart(document.getElementById('heightChart'),{type:'line',data:{labels:[],datasets:[{label:'Block Height',data:[],borderColor:c,backgroundColor:tcA(c,0.1),fill:true,tension:0.4,pointRadius:0,yAxisID:'y'},{label:'Peers',data:[],borderColor:g,backgroundColor:tcA(g,0.1),fill:true,tension:0.4,pointRadius:0,yAxisID:'y1'}]},options:{...chartDefaults,interaction:{mode:'index',intersect:false},scales:{...chartDefaults.scales,y:{...chartDefaults.scales.y,position:'left'},y1:{...chartDefaults.scales.y,position:'right',grid:{drawOnChartArea:false}}}}});
-  projectionChart=new Chart(document.getElementById('projectionChart'),{type:'line',data:{labels:[],datasets:[{label:'No Compounding',data:[],borderColor:t3,borderDash:[5,5],tension:0.4,pointRadius:0},{label:'Weekly',data:[],borderColor:g,backgroundColor:tcA(g,0.08),fill:true,tension:0.4,pointRadius:0},{label:'Daily',data:[],borderColor:c,backgroundColor:tcA(c,0.08),fill:true,tension:0.4,pointRadius:0}]},options:{...chartDefaults,plugins:{legend:{display:true,labels:{color:t2,font:{size:11},boxWidth:12,padding:16}}}}});
+  rewardsChart=new Chart(document.getElementById('rewardsChart'),{type:'line',data:{labels:[],datasets:[{label:'Rewards',data:[],borderColor:p,backgroundColor:tcA(p,0.1),fill:true,tension:0.4,pointRadius:0,borderWidth:2},{label:'Commission',data:[],borderColor:o,backgroundColor:tcA(o,0.1),fill:true,tension:0.4,pointRadius:0,borderWidth:2}]},options:{...chartDefaults,interaction:{mode:'index',intersect:false},plugins:{legend:{display:true,labels:{color:t2,font:{size:10},boxWidth:10,padding:12}},tooltip:{callbacks:{label:chartTooltipFmt}}}}});
+  heightChart=new Chart(document.getElementById('heightChart'),{type:'line',data:{labels:[],datasets:[{label:'Block Height',data:[],borderColor:c,backgroundColor:tcA(c,0.1),fill:true,tension:0.4,pointRadius:0,yAxisID:'y'},{label:'Peers',data:[],borderColor:g,backgroundColor:tcA(g,0.1),fill:true,tension:0.4,pointRadius:0,yAxisID:'y1'}]},options:{...chartDefaults,interaction:{mode:'index',intersect:false},plugins:{legend:{display:true,labels:{color:t2,font:{size:10},boxWidth:10,padding:12}},tooltip:{callbacks:{label:function(ctx){return ctx.dataset.label+': '+fmtInt(ctx.parsed.y)}}}},scales:{...chartDefaults.scales,y:{...chartDefaults.scales.y,position:'left'},y1:{...chartDefaults.scales.y,position:'right',grid:{drawOnChartArea:false}}}}});
+  projectionChart=new Chart(document.getElementById('projectionChart'),{type:'line',data:{labels:[],datasets:[{label:'No Compounding',data:[],borderColor:t3,borderDash:[5,5],tension:0.4,pointRadius:0},{label:'Weekly',data:[],borderColor:g,backgroundColor:tcA(g,0.08),fill:true,tension:0.4,pointRadius:0},{label:'Daily',data:[],borderColor:c,backgroundColor:tcA(c,0.08),fill:true,tension:0.4,pointRadius:0}]},options:{...chartDefaults,interaction:{mode:'index',intersect:false},plugins:{legend:{display:true,labels:{color:t2,font:{size:11},boxWidth:12,padding:16}},tooltip:{callbacks:{label:chartTooltipFmt}}}}});
   signingRingChart=new Chart(document.getElementById('signingRing'),{type:'doughnut',data:{datasets:[{data:[0,100],backgroundColor:[g,tcA(bg4,0.8)],borderWidth:0,cutout:'78%'}]},options:{responsive:false,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{enabled:false}},animation:{duration:800}}});
+  sysResourceChart=new Chart(document.getElementById('sysResourceChart'),{type:'line',data:{labels:[],datasets:[{label:'CPU %',data:[],borderColor:o,backgroundColor:tcA(o,0.08),fill:true,tension:0.4,pointRadius:0,borderWidth:2,yAxisID:'y'},{label:'Memory (MB)',data:[],borderColor:p,backgroundColor:tcA(p,0.08),fill:true,tension:0.4,pointRadius:0,borderWidth:2,yAxisID:'y1'},{label:'Disk %',data:[],borderColor:pk,backgroundColor:tcA(pk,0.08),fill:true,tension:0.4,pointRadius:0,borderWidth:2,yAxisID:'y'}]},options:{...chartDefaults,interaction:{mode:'index',intersect:false},plugins:{legend:{display:true,labels:{color:t2,font:{size:10},boxWidth:10,padding:12}},tooltip:{callbacks:{label:function(ctx){if(ctx.datasetIndex===1)return ctx.dataset.label+': '+(ctx.parsed.y>=1024?(ctx.parsed.y/1024).toFixed(2)+' GB':ctx.parsed.y.toFixed(0)+' MB');return ctx.dataset.label+': '+ctx.parsed.y.toFixed(1)+'%'}}}},scales:{...chartDefaults.scales,y:{...chartDefaults.scales.y,position:'left',min:0,ticks:{...chartDefaults.scales.y.ticks,callback:function(v){return v+'%'}}},y1:{...chartDefaults.scales.y,position:'right',grid:{drawOnChartArea:false},ticks:{...chartDefaults.scales.y.ticks,callback:function(v){return v>=1024?(v/1024).toFixed(1)+' GB':v+' MB'}}}}}});
+  stakingChart=new Chart(document.getElementById('stakingChart'),{type:'line',data:{labels:[],datasets:[{label:'Delegated',data:[],borderColor:g,backgroundColor:tcA(g,0.1),fill:true,tension:0.4,pointRadius:0,borderWidth:2,yAxisID:'y'},{label:'Available',data:[],borderColor:pk,backgroundColor:tcA(pk,0.1),fill:true,tension:0.4,pointRadius:0,borderWidth:2,yAxisID:'y1'}]},options:{...chartDefaults,interaction:{mode:'index',intersect:false},plugins:{legend:{display:true,labels:{color:t2,font:{size:10},boxWidth:10,padding:12}},tooltip:{callbacks:{label:chartTooltipFmt}}},scales:{...chartDefaults.scales,y:{...chartDefaults.scales.y,position:'left'},y1:{...chartDefaults.scales.y,position:'right',grid:{drawOnChartArea:false}}}}});
 }
 
 function updateCharts(){
@@ -1998,6 +2061,19 @@ function updateCharts(){
     heightChart.data.datasets[0].data=historyData.map(h=>h.height||0);
     heightChart.data.datasets[1].data=historyData.map(h=>h.peers||0);
     heightChart.update('none');
+    if(sysResourceChart){
+      sysResourceChart.data.labels=labels;
+      sysResourceChart.data.datasets[0].data=historyData.map(h=>h.cpu_pct||0);
+      sysResourceChart.data.datasets[1].data=historyData.map(h=>h.memory_mb||0);
+      sysResourceChart.data.datasets[2].data=historyData.map(h=>h.disk_pct||0);
+      sysResourceChart.update('none');
+    }
+    if(stakingChart){
+      stakingChart.data.labels=labels;
+      stakingChart.data.datasets[0].data=historyData.map(h=>h.delegated||0);
+      stakingChart.data.datasets[1].data=historyData.map(h=>h.available||0);
+      stakingChart.update('none');
+    }
   }
 }
 
@@ -2200,29 +2276,51 @@ async function loadChainInfo(){
 }
 
 // ── Strategy ──
-function updateStrategy(){
+async function updateStrategy(){
   const s=currentStaking;
-  if(!s.delegated||!historyData.length){document.getElementById('strategyAdvice').textContent='Collecting data...';return;}
-  let apr=0;
-  if(historyData.length>=2){
-    const first=historyData[0],last=historyData[historyData.length-1];
-    const timeDiffHours=(new Date(last.ts)-new Date(first.ts))/3600000;
-    if(timeDiffHours>0&&first.delegated>0){
-      const rewardRate=((last.rewards||0)-(first.rewards||0))+((last.commission||0)-(first.commission||0));
-      apr=(rewardRate/timeDiffHours)*8760/first.delegated*100;
+  if(!s.delegated){document.getElementById('strategyAdvice').textContent='No delegation found...';return;}
+  // Fetch actual earning data from commission-income endpoint for accurate APR
+  let apr=0,dailyEarning=0;
+  try{
+    const r=await fetch('/api/commission-income');const ci=await r.json();
+    const daily=ci.daily||[];
+    if(daily.length>=2){
+      // Use last 7 days of actual delta earnings for APR calculation
+      const recent=daily.slice(-7);
+      const totalEarned=recent.reduce((a,d)=>(a+(d.earned||0)+(d.rewards||0)),0);
+      const avgDaily=totalEarned/recent.length;
+      dailyEarning=avgDaily;
+      if(s.delegated>0&&avgDaily>0){
+        apr=(avgDaily/s.delegated)*365*100;
+      }
+    }
+  }catch(e){}
+  // Fallback: estimate from current pending if no history
+  if(apr<=0&&s.delegated>0){
+    const totalPending=(s.pending_rewards||0)+(s.pending_commission||0);
+    if(totalPending>0){
+      // Assume pending has accumulated over ~4 days
+      dailyEarning=totalPending/4;
+      apr=(dailyEarning/s.delegated)*365*100;
     }
   }
-  if(apr<=0&&s.delegated>0){apr=((s.pending_rewards||0)+(s.pending_commission||0))/s.delegated*(365/4)*100;}
   const dailyRate=apr/365;
   const dailyReward=s.delegated*(dailyRate/100);
   const monthlyReward=dailyReward*30;
-  document.getElementById('dailyReward').textContent=fmtShort(dailyReward);
-  document.getElementById('monthlyReward').textContent=fmtShort(monthlyReward);
-  document.getElementById('aprEstimate').textContent=apr.toFixed(2)+'%';
+  document.getElementById('dailyReward').textContent=fmt(dailyReward);
+  document.getElementById('monthlyReward').textContent=fmt(monthlyReward);
+  // Show enough decimal places for tiny APRs
+  const aprStr=apr<0.01&&apr>0?apr.toFixed(8).replace(/0+$/,'').replace(/\.$/,'')+'%':apr.toFixed(4).replace(/0+$/,'').replace(/\.$/,'')+'%';
+  document.getElementById('aprEstimate').textContent=aprStr;
   const totalPending=(s.pending_rewards||0)+(s.pending_commission||0);
-  const gasCost=0.01;
-  const optimalFreqDays=totalPending>0?Math.max(1,Math.ceil(Math.sqrt(2*gasCost*365/(dailyRate/100*s.delegated)))):7;
-  document.getElementById('strategyAdvice').innerHTML='<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px"><div><strong style="color:var(--cyan)">Current Position</strong><br>Staked: <strong>'+fmt(s.delegated)+' HYVE</strong><br>Unclaimed: <strong>'+fmt(totalPending)+' HYVE</strong><br>Liquid: <strong>'+fmt(s.available||0)+' HYVE</strong></div><div><strong style="color:var(--green)">Recommendations</strong><br>&#9889; Optimal compound: <strong>every '+optimalFreqDays+' day'+(optimalFreqDays>1?'s':'')+'</strong><br>&#128176; APR: <strong>'+apr.toFixed(2)+'%</strong><br>&#128200; Daily compound APY: <strong>'+((Math.pow(1+dailyRate/100,365)-1)*100).toFixed(2)+'%</strong><br>&#128161; '+(totalPending>1?'<span style="color:var(--green)">Rewards ready!</span>':'Accumulating...')+'</div></div>';
+  // Gas cost in HYVE — typical Hyve tx is ~0.001-0.01 HYVE
+  const gasCost=0.001;
+  const optimalFreqDays=dailyReward>0?Math.max(1,Math.ceil(Math.sqrt(2*gasCost/(dailyRate/100*s.delegated)))):365;
+  const compApy=(Math.pow(1+dailyRate/100,365)-1)*100;
+  const compApyStr=compApy<0.01&&compApy>0?compApy.toFixed(8).replace(/0+$/,'').replace(/\.$/,'')+'%':compApy.toFixed(4).replace(/0+$/,'').replace(/\.$/,'')+'%';
+  const yearlyEst=dailyReward*365;
+  const pendingReady=totalPending>gasCost;
+  document.getElementById('strategyAdvice').innerHTML='<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px"><div><strong style="color:var(--cyan)">Current Position</strong><br>Staked: <strong>'+fmt(s.delegated)+' HYVE</strong><br>Unclaimed: <strong>'+fmt(totalPending)+' HYVE</strong><br>Liquid: <strong>'+fmt(s.available||0)+' HYVE</strong><br>Est. Yearly: <strong>'+fmt(yearlyEst)+' HYVE</strong></div><div><strong style="color:var(--green)">Recommendations</strong><br>&#9889; Optimal compound: <strong>every '+optimalFreqDays+' day'+(optimalFreqDays>1?'s':'')+'</strong><br>&#128176; APR: <strong>'+aprStr+'</strong><br>&#128200; Compound APY: <strong>'+compApyStr+'</strong><br>&#128161; '+(pendingReady?'<span style="color:var(--green)">Rewards ready to compound!</span>':totalPending>0?'Accumulating ('+fmt(totalPending)+' pending)':'No pending rewards')+'</div></div>';
   if(projectionChart&&s.delegated>0&&apr>0){
     const labels=[],noC=[],wkC=[],dyC=[];
     for(let m=0;m<=12;m++){labels.push(m===0?'Now':'M'+m);noC.push(s.delegated+(s.delegated*apr/100/12*m));wkC.push(s.delegated*Math.pow(1+(apr/100/52),m*4.33));dyC.push(s.delegated*Math.pow(1+(apr/100/365),m*30));}
@@ -2338,26 +2436,75 @@ async function loadTxHistory(){
 }
 
 // ── Rewards History ──
+let cumulativeEarnChart=null,dailyEarnChart=null;
 async function loadRewardsHistory(){
   try{
     const r=await fetch('/api/rewards-history');const d=await r.json();
+    // Summary cards
+    const s=d.summary||{};
+    document.getElementById('rewHistTotal').textContent=fmt((s.total_comm||0)+(s.total_rew||0));
+    document.getElementById('rewHistToday').textContent=fmt((s.today_comm||0)+(s.today_rew||0));
+    document.getElementById('rewHistWeek').textContent=fmt((s.week_comm||0)+(s.week_rew||0));
+    document.getElementById('rewHistAvg').textContent=fmt((s.avg_daily_comm||0)+(s.avg_daily_rew||0));
+
+    const chartOpts=(extra)=>({...chartDefaults,interaction:{mode:'index',intersect:false},plugins:{legend:{display:true,labels:{color:'#8b949e',font:{size:10},boxWidth:10,padding:12}},tooltip:{callbacks:{label:chartTooltipFmt}}},...extra});
+
+    // Cumulative earnings chart
+    const cum=d.cumulative||[];
+    if(cum.length>1){
+      const cumLabels=cum.map(c=>{const dt=new Date(c.hour);return (dt.getMonth()+1)+'/'+dt.getDate()+' '+dt.getHours().toString().padStart(2,'0')+':00';});
+      if(cumulativeEarnChart)cumulativeEarnChart.destroy();
+      cumulativeEarnChart=new Chart(document.getElementById('cumulativeEarnChart'),{type:'line',data:{labels:cumLabels,datasets:[
+        {label:'Total Earned',data:cum.map(c=>c.combined),borderColor:'#3fb950',backgroundColor:'rgba(63,185,80,0.1)',fill:true,tension:0.3,pointRadius:0,borderWidth:2},
+        {label:'Commission',data:cum.map(c=>c.comm_total),borderColor:'#f0883e',backgroundColor:'rgba(240,136,62,0.08)',fill:true,tension:0.3,pointRadius:0,borderWidth:1.5},
+        {label:'Rewards',data:cum.map(c=>c.rew_total),borderColor:'#a371f7',backgroundColor:'rgba(163,113,247,0.08)',fill:true,tension:0.3,pointRadius:0,borderWidth:1.5}
+      ]},options:chartOpts({scales:{x:{grid:{display:false},ticks:{color:'#8b949e',maxTicksLimit:12}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#8b949e',callback:chartTickFmt}}}})});
+    }
+
+    // Daily earnings bar chart
+    const daily=d.daily||[];
+    if(daily.length>1){
+      const dayLabels=daily.map(x=>x.day.slice(5));
+      if(dailyEarnChart)dailyEarnChart.destroy();
+      dailyEarnChart=new Chart(document.getElementById('dailyEarnChart'),{type:'bar',data:{labels:dayLabels,datasets:[
+        {label:'Commission',data:daily.map(x=>x.comm),backgroundColor:'rgba(240,136,62,0.6)',borderColor:'#f0883e',borderWidth:1,borderRadius:4},
+        {label:'Rewards',data:daily.map(x=>x.rew),backgroundColor:'rgba(163,113,247,0.6)',borderColor:'#a371f7',borderWidth:1,borderRadius:4}
+      ]},options:{...chartDefaults,interaction:{mode:'index',intersect:false},plugins:{legend:{display:true,labels:{color:'#8b949e',font:{size:10},boxWidth:10,padding:12}},tooltip:{callbacks:{label:chartTooltipFmt}}},scales:{x:{stacked:true,grid:{display:false},ticks:{color:'#8b949e'}},y:{stacked:true,grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#8b949e',callback:chartTickFmt}}}}});
+    }
+
+    // Hourly snapshot charts
     const data=d.data||[];
     if(!data.length) return;
     const labels=data.map(r=>{const dt=new Date(r.hour);return (dt.getMonth()+1)+'/'+dt.getDate()+' '+dt.getHours().toString().padStart(2,'0')+':00';});
-    const mkChart=(id,label,color,key)=>{
+    const mkChart=(id,cfg)=>{
       const ctx=document.getElementById(id);
       if(!ctx) return null;
-      const existing={rewardsHistChart,delegatedHistChart,uptimeHistChart,shadeHistChart}[id.replace('Chart','')+'Chart'];
-      if(window[id+'_inst']){window[id+'_inst'].destroy();}
-      const c=new Chart(ctx,{type:'line',data:{labels,datasets:[{label,data:data.map(r=>r[key]||0),borderColor:color,backgroundColor:color+'18',fill:true,tension:0.4,pointRadius:0}]},options:{...chartDefaults,plugins:{legend:{display:false}}}});
+      if(window[id+'_inst'])window[id+'_inst'].destroy();
+      const c=new Chart(ctx,cfg);
       window[id+'_inst']=c;
       return c;
     };
-    rewardsHistChart=mkChart('rewardsHistChart','Rewards','#a371f7','rewards');
-    delegatedHistChart=mkChart('delegatedHistChart','Delegated','#3fb950','delegated');
-    uptimeHistChart=mkChart('uptimeHistChart','Uptime %','#22d3ee','uptime_pct');
-    shadeHistChart=mkChart('shadeHistChart','SHADE Pending','#84cc16','shade_pending');
-  }catch(e){}
+    // Pending Rewards — own chart with proper Y scale
+    rewardsHistChart=mkChart('rewardsHistChart',{type:'line',data:{labels,datasets:[
+      {label:'Pending Rewards',data:data.map(r=>r.rewards||0),borderColor:'#a371f7',backgroundColor:'rgba(163,113,247,0.12)',fill:true,tension:0.4,pointRadius:0,borderWidth:2}
+    ]},options:chartOpts({plugins:{legend:{display:false},tooltip:{callbacks:{label:chartTooltipFmt}}},scales:{x:{grid:{display:false},ticks:{color:'#8b949e',maxTicksLimit:10}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#8b949e',callback:chartTickFmt}}}})});
+    // Pending Commission — own chart with proper Y scale
+    mkChart('commHistChart',{type:'line',data:{labels,datasets:[
+      {label:'Pending Commission',data:data.map(r=>r.commission||0),borderColor:'#f0883e',backgroundColor:'rgba(240,136,62,0.12)',fill:true,tension:0.4,pointRadius:0,borderWidth:2}
+    ]},options:chartOpts({plugins:{legend:{display:false},tooltip:{callbacks:{label:chartTooltipFmt}}},scales:{x:{grid:{display:false},ticks:{color:'#8b949e',maxTicksLimit:10}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#8b949e',callback:chartTickFmt}}}})});
+    // Delegated
+    delegatedHistChart=mkChart('delegatedHistChart',{type:'line',data:{labels,datasets:[
+      {label:'Delegated HYVE',data:data.map(r=>r.delegated||0),borderColor:'#3fb950',backgroundColor:'rgba(63,185,80,0.15)',fill:true,tension:0.4,pointRadius:0,borderWidth:2}
+    ]},options:chartOpts({plugins:{legend:{display:false},tooltip:{callbacks:{label:chartTooltipFmt}}},scales:{x:{grid:{display:false},ticks:{color:'#8b949e',maxTicksLimit:10}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#8b949e'}}}})});
+    // Uptime
+    uptimeHistChart=mkChart('uptimeHistChart',{type:'line',data:{labels,datasets:[
+      {label:'Uptime %',data:data.map(r=>r.uptime_pct||0),borderColor:'#22d3ee',backgroundColor:'rgba(34,211,238,0.12)',fill:true,tension:0.4,pointRadius:0,borderWidth:2}
+    ]},options:chartOpts({plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){return 'Uptime: '+ctx.parsed.y.toFixed(2)+'%'}}}},scales:{x:{grid:{display:false},ticks:{color:'#8b949e',maxTicksLimit:8}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#8b949e',callback:function(v){return v+'%'}},min:0,max:100}}})});
+    // SHADE
+    shadeHistChart=mkChart('shadeHistChart',{type:'line',data:{labels,datasets:[
+      {label:'SHADE Pending',data:data.map(r=>r.shade_pending||0),borderColor:'#84cc16',backgroundColor:'rgba(132,204,22,0.12)',fill:true,tension:0.4,pointRadius:0,borderWidth:2}
+    ]},options:chartOpts({plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){return 'SHADE: '+ctx.parsed.y.toLocaleString(undefined,{maximumFractionDigits:2})}}}},scales:{x:{grid:{display:false},ticks:{color:'#8b949e',maxTicksLimit:10}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#8b949e'}}}})});
+  }catch(e){console.error('loadRewardsHistory',e);}
 }
 
 // ── Benchmarks ──
@@ -3063,8 +3210,8 @@ async function loadRankTracker(){
     const ctx2=document.getElementById('delegatorChart').getContext('2d');
     if(rankChartInst) rankChartInst.destroy();
     if(delegatorChartInst) delegatorChartInst.destroy();
-    rankChartInst=new Chart(ctx1,{type:'line',data:{labels,datasets:[{label:'Rank',data:ranks,borderColor:'#22d3ee',backgroundColor:'rgba(34,211,238,0.1)',fill:true,tension:0.4,pointRadius:0}]},options:{...chartDefaults,scales:{...chartDefaults.scales,y:{...chartDefaults.scales.y,reverse:true}}}});
-    delegatorChartInst=new Chart(ctx2,{type:'line',data:{labels,datasets:[{label:'Delegators',data:dc,borderColor:'#a371f7',backgroundColor:'rgba(163,113,247,0.1)',fill:true,tension:0.4,pointRadius:0}]},options:chartDefaults});
+    rankChartInst=new Chart(ctx1,{type:'line',data:{labels,datasets:[{label:'Rank',data:ranks,borderColor:'#22d3ee',backgroundColor:'rgba(34,211,238,0.1)',fill:true,tension:0.4,pointRadius:0}]},options:{...chartDefaults,interaction:{mode:'index',intersect:false},plugins:{tooltip:{callbacks:{label:function(ctx){return 'Rank: #'+ctx.parsed.y}}}},scales:{...chartDefaults.scales,y:{...chartDefaults.scales.y,reverse:true}}}});
+    delegatorChartInst=new Chart(ctx2,{type:'line',data:{labels,datasets:[{label:'Delegators',data:dc,borderColor:'#a371f7',backgroundColor:'rgba(163,113,247,0.1)',fill:true,tension:0.4,pointRadius:0}]},options:{...chartDefaults,interaction:{mode:'index',intersect:false},plugins:{tooltip:{callbacks:{label:function(ctx){return 'Delegators: '+ctx.parsed.y}}}}}});
   }catch(e){console.error('loadRankTracker',e);}
 }
 
@@ -3146,7 +3293,7 @@ async function loadDiskForecast(){
     if(hist.length>=2){
       const ctx=document.getElementById('diskChart').getContext('2d');
       if(diskChartInst) diskChartInst.destroy();
-      diskChartInst=new Chart(ctx,{type:'line',data:{labels:hist.map(h=>h.date.slice(5)),datasets:[{label:'Disk %',data:hist.map(h=>h.pct),borderColor:'#db6d28',backgroundColor:'rgba(219,109,40,0.1)',fill:true,tension:0.4,pointRadius:0}]},options:{...chartDefaults,scales:{...chartDefaults.scales,y:{...chartDefaults.scales.y,min:0,max:100}}}});
+      diskChartInst=new Chart(ctx,{type:'line',data:{labels:hist.map(h=>h.date.slice(5)),datasets:[{label:'Disk %',data:hist.map(h=>h.pct),borderColor:'#db6d28',backgroundColor:'rgba(219,109,40,0.1)',fill:true,tension:0.4,pointRadius:0}]},options:{...chartDefaults,interaction:{mode:'index',intersect:false},plugins:{tooltip:{callbacks:{label:function(ctx){return 'Disk: '+ctx.parsed.y.toFixed(1)+'%'}}}},scales:{...chartDefaults.scales,y:{...chartDefaults.scales.y,min:0,max:100,ticks:{...chartDefaults.scales.y.ticks,callback:function(v){return v+'%'}}}}}});
     }
   }catch(e){console.error('loadDiskForecast',e);}
 }
@@ -3520,6 +3667,15 @@ function refreshThemeColors(){
   projectionChart.options.plugins.legend.labels.color=t2;projectionChart.update('none');
   var pct=signingRingChart.data.datasets[0].data[0]||0;
   signingRingChart.data.datasets[0].backgroundColor=[pct>=99?g:pct>=95?tc('--yellow'):tc('--red'),tcA(bg4,0.8)];signingRingChart.update('none');
+  if(sysResourceChart){
+    sysResourceChart.data.datasets[0].borderColor=o;sysResourceChart.data.datasets[0].backgroundColor=tcA(o,0.08);
+    sysResourceChart.data.datasets[1].borderColor=p;sysResourceChart.data.datasets[1].backgroundColor=tcA(p,0.08);
+    sysResourceChart.data.datasets[2].borderColor=pk;sysResourceChart.data.datasets[2].backgroundColor=tcA(pk,0.08);sysResourceChart.update('none');
+  }
+  if(stakingChart){
+    stakingChart.data.datasets[0].borderColor=g;stakingChart.data.datasets[0].backgroundColor=tcA(g,0.1);
+    stakingChart.data.datasets[1].borderColor=pk;stakingChart.data.datasets[1].backgroundColor=tcA(pk,0.1);stakingChart.update('none');
+  }
   // refresh sparklines + donut legend
   if(typeof updateSparklines==='function')updateSparklines();
   if(typeof updateCharts==='function')updateCharts();
@@ -3625,10 +3781,10 @@ function calcEarnings(){
     yearly=stake*net;
   }
   daily=yearly/365;weekly=yearly/52;monthly=yearly/12;
-  document.getElementById('calcDaily').textContent=daily.toFixed(4);
-  document.getElementById('calcWeekly').textContent=weekly.toFixed(4);
-  document.getElementById('calcMonthly').textContent=monthly.toFixed(4);
-  document.getElementById('calcYearly').textContent=yearly.toFixed(4);
+  document.getElementById('calcDaily').textContent=fmt(daily);
+  document.getElementById('calcWeekly').textContent=fmt(weekly);
+  document.getElementById('calcMonthly').textContent=fmt(monthly);
+  document.getElementById('calcYearly').textContent=fmt(yearly);
   // Chart
   var labels=[],data=[];
   var bal=stake;
@@ -3639,7 +3795,7 @@ function calcEarnings(){
   }
   var ctx=document.getElementById('earningsChart');
   if(earningsChart)earningsChart.destroy();
-  earningsChart=new Chart(ctx,{type:'line',data:{labels:labels,datasets:[{label:'Balance (HYVE)',data:data,borderColor:'#3fb950',backgroundColor:'rgba(63,185,80,0.08)',fill:true,tension:0.3,pointRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#8b949e'}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#8b949e'}}}}});
+  earningsChart=new Chart(ctx,{type:'line',data:{labels:labels,datasets:[{label:'Balance (HYVE)',data:data,borderColor:'#3fb950',backgroundColor:'rgba(63,185,80,0.08)',fill:true,tension:0.3,pointRadius:3}]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:{callbacks:{label:chartTooltipFmt}}},scales:{x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#8b949e'}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#8b949e',callback:chartTickFmt}}}}});
 }
 
 // ── System Resources ──
@@ -3649,15 +3805,15 @@ async function loadResources(){
     var data=d.data||[];
     if(!data.length)return;
     var labels=data.map(function(r){return new Date(r.ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});});
-    var chartOpts={responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{display:false},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#8b949e'}}}};
+    var chartOpts={responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:false}},scales:{x:{display:false},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#8b949e'}}}};
     var ctx1=document.getElementById('cpuChart');if(cpuChart)cpuChart.destroy();
-    cpuChart=new Chart(ctx1,{type:'line',data:{labels:labels,datasets:[{label:'CPU %',data:data.map(function(r){return r.cpu_pct}),borderColor:'#22d3ee',backgroundColor:'rgba(34,211,238,0.06)',fill:true,tension:0.3,pointRadius:0}]},options:chartOpts});
+    cpuChart=new Chart(ctx1,{type:'line',data:{labels:labels,datasets:[{label:'CPU %',data:data.map(function(r){return r.cpu_pct}),borderColor:'#22d3ee',backgroundColor:'rgba(34,211,238,0.06)',fill:true,tension:0.3,pointRadius:0}]},options:{...chartOpts,plugins:{...chartOpts.plugins,tooltip:{callbacks:{label:function(ctx){return 'CPU: '+ctx.parsed.y.toFixed(1)+'%'}}}},scales:{...chartOpts.scales,y:{...chartOpts.scales.y,ticks:{...chartOpts.scales.y.ticks,callback:function(v){return v+'%'}}}}}});
     var ctx2=document.getElementById('memChart');if(memChart)memChart.destroy();
-    memChart=new Chart(ctx2,{type:'line',data:{labels:labels,datasets:[{label:'Memory MB',data:data.map(function(r){return r.memory_mb}),borderColor:'#a371f7',backgroundColor:'rgba(163,113,247,0.06)',fill:true,tension:0.3,pointRadius:0}]},options:chartOpts});
+    memChart=new Chart(ctx2,{type:'line',data:{labels:labels,datasets:[{label:'Memory MB',data:data.map(function(r){return r.memory_mb}),borderColor:'#a371f7',backgroundColor:'rgba(163,113,247,0.06)',fill:true,tension:0.3,pointRadius:0}]},options:{...chartOpts,plugins:{...chartOpts.plugins,tooltip:{callbacks:{label:function(ctx){var v=ctx.parsed.y;return 'Memory: '+(v>=1024?(v/1024).toFixed(2)+' GB':v.toFixed(0)+' MB')}}}},scales:{...chartOpts.scales,y:{...chartOpts.scales.y,ticks:{...chartOpts.scales.y.ticks,callback:function(v){return v>=1024?(v/1024).toFixed(1)+' GB':v+' MB'}}}}}});
     var ctx3=document.getElementById('diskChart');if(diskRChart)diskRChart.destroy();
-    diskRChart=new Chart(ctx3,{type:'line',data:{labels:labels,datasets:[{label:'Disk %',data:data.map(function(r){return r.disk_pct}),borderColor:'#f778ba',backgroundColor:'rgba(247,120,186,0.06)',fill:true,tension:0.3,pointRadius:0}]},options:chartOpts});
+    diskRChart=new Chart(ctx3,{type:'line',data:{labels:labels,datasets:[{label:'Disk %',data:data.map(function(r){return r.disk_pct}),borderColor:'#f778ba',backgroundColor:'rgba(247,120,186,0.06)',fill:true,tension:0.3,pointRadius:0}]},options:{...chartOpts,plugins:{...chartOpts.plugins,tooltip:{callbacks:{label:function(ctx){return 'Disk: '+ctx.parsed.y.toFixed(1)+'%'}}}},scales:{...chartOpts.scales,y:{...chartOpts.scales.y,min:0,max:100,ticks:{...chartOpts.scales.y.ticks,callback:function(v){return v+'%'}}}}}});
     var ctx4=document.getElementById('peerHistChart');if(peerHistChart)peerHistChart.destroy();
-    peerHistChart=new Chart(ctx4,{type:'line',data:{labels:labels,datasets:[{label:'Peers',data:data.map(function(r){return r.peers}),borderColor:'#3fb950',backgroundColor:'rgba(63,185,80,0.06)',fill:true,tension:0.3,pointRadius:0}]},options:chartOpts});
+    peerHistChart=new Chart(ctx4,{type:'line',data:{labels:labels,datasets:[{label:'Peers',data:data.map(function(r){return r.peers}),borderColor:'#3fb950',backgroundColor:'rgba(63,185,80,0.06)',fill:true,tension:0.3,pointRadius:0}]},options:{...chartOpts,plugins:{...chartOpts.plugins,tooltip:{callbacks:{label:function(ctx){return 'Peers: '+ctx.parsed.y}}}}}});
   }catch(e){console.error('loadResources',e);}
 }
 
@@ -3665,16 +3821,22 @@ async function loadResources(){
 async function loadCommission(){
   try{
     const r=await fetch('/api/commission-income');const d=await r.json();
-    document.getElementById('commTotal').textContent=(d.total||0).toFixed(4);
+    document.getElementById('commTotal').textContent=fmt(d.total||0);
+    document.getElementById('commTotalRew').textContent=fmt(d.total_rewards||0);
     var daily=d.daily||[];
     if(daily.length>0){
-      document.getElementById('commToday').textContent=daily[daily.length-1].earned.toFixed(6);
-      var last7=daily.slice(-7);var avg7=last7.reduce(function(sum,x){return sum+x.earned;},0)/Math.max(last7.length,1);
-      document.getElementById('commAvg7').textContent=avg7.toFixed(6);
+      var last=daily[daily.length-1];
+      document.getElementById('commToday').textContent=fmt(last.earned||0);
+      document.getElementById('commTodayRew').textContent=fmt(last.rewards||0);
+      var last7=daily.slice(-7);
+      var avg7c=last7.reduce(function(s,x){return s+(x.earned||0);},0)/Math.max(last7.length,1);
+      var avg7r=last7.reduce(function(s,x){return s+(x.rewards||0);},0)/Math.max(last7.length,1);
+      document.getElementById('commAvg7').textContent=fmt(avg7c);
+      document.getElementById('commAvg7Rew').textContent=fmt(avg7r);
     }
     if(daily.length>1){
       var ctx=document.getElementById('commChart');if(commChart)commChart.destroy();
-      commChart=new Chart(ctx,{type:'bar',data:{labels:daily.map(function(d){return d.day.slice(5);}),datasets:[{label:'Commission (HYVE)',data:daily.map(function(d){return d.earned;}),backgroundColor:'rgba(63,185,80,0.5)',borderColor:'#3fb950',borderWidth:1,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{color:'#8b949e',maxRotation:45}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#8b949e'}}}}});
+      commChart=new Chart(ctx,{type:'bar',data:{labels:daily.map(function(d){return d.day.slice(5);}),datasets:[{label:'Commission (HYVE)',data:daily.map(function(d){return d.earned;}),backgroundColor:'rgba(63,185,80,0.5)',borderColor:'#3fb950',borderWidth:1,borderRadius:4},{label:'Rewards (HYVE)',data:daily.map(function(d){return d.rewards||0;}),backgroundColor:'rgba(56,189,248,0.5)',borderColor:'#38bdf8',borderWidth:1,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#8b949e'}},tooltip:{callbacks:{label:chartTooltipFmt}}},scales:{x:{grid:{display:false},ticks:{color:'#8b949e',maxRotation:45}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#8b949e',callback:chartTickFmt}}}}});
     }
   }catch(e){console.error('loadCommission',e);}
 }
@@ -3714,6 +3876,8 @@ async function loadWhaleAlerts(){
 async function loadUpgrades(){
   try{
     const r=await fetch('/api/upgrades');const d=await r.json();
+    // Load variants and populate selector
+    loadUpgradeVariants(d.selected_variant);
     // Pending upgrade plan
     var plan=d.current_plan;
     if(plan){
@@ -3758,13 +3922,14 @@ async function loadUpgrades(){
     document.getElementById('ugDownloadBtn').disabled=!(rb.size>0);
     document.getElementById('ugApplyBtn').disabled=!ub.exists;
     document.getElementById('ugRollbackBtn').disabled=false;
-    // Download button label
+    // Download button label - show selected variant
+    var selVar=d.selected_variant||'hyved';
     if(d.new_binary_available){
-      document.getElementById('ugDownloadBtn').textContent='\u2B07 Download New Binary Available!';
+      document.getElementById('ugDownloadBtn').textContent='\u2B07 Download New Binary Available! ('+selVar+')';
       document.getElementById('ugDownloadBtn').style.background='var(--orange)';
       document.getElementById('ugDownloadBtn').style.color='#000';
     } else {
-      document.getElementById('ugDownloadBtn').textContent='\u2B07 Download Latest Binary';
+      document.getElementById('ugDownloadBtn').textContent='\u2B07 Download Latest Binary ('+selVar+')';
       document.getElementById('ugDownloadBtn').style.background='';
       document.getElementById('ugDownloadBtn').style.color='';
     }
@@ -3779,6 +3944,60 @@ async function loadUpgrades(){
       return '<tr><td class="mono">#'+u.proposal_id+'</td><td>'+u.name+'</td><td class="mono">'+fmt(u.height)+'</td><td>'+applied+'</td><td style="font-size:11px;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+info+'</td></tr>';
     }).join('');
   }catch(e){console.error('loadUpgrades',e);}
+}
+var _ugVariantsLoaded=false;
+async function loadUpgradeVariants(selectedVariant){
+  var sel=document.getElementById('ugVariantSelect');
+  var url=document.getElementById('ugManualUrl');
+  if(!_ugVariantsLoaded){
+    try{
+      const r=await fetch('/api/upgrades/variants');const d=await r.json();
+      if(d.variants&&d.variants.length){
+        sel.innerHTML=d.variants.map(function(v){
+          var sizeMb=(v.size/1048576).toFixed(0);
+          return '<option value="'+v.name+'">'+v.name+' ('+sizeMb+' MB)</option>';
+        }).join('');
+      }
+      if(d.manual_url)url.value=d.manual_url;
+      _ugVariantsLoaded=true;
+    }catch(e){console.error('loadUpgradeVariants',e);}
+  }
+  if(selectedVariant)sel.value=selectedVariant;
+  onVariantChange();
+}
+function onVariantChange(){
+  var sel=document.getElementById('ugVariantSelect');
+  var info=document.getElementById('ugVariantInfo');
+  var v=sel.value;
+  if(v==='hyved')info.textContent='Standard x86_64 build for most Linux systems';
+  else if(v==='hyved-arm64')info.textContent='ARM64 build for Raspberry Pi / Apple Silicon';
+  else if(v==='hyved-compat')info.textContent='Compatibility build for older systems';
+  else info.textContent='';
+}
+async function saveBinaryConfig(){
+  var variant=document.getElementById('ugVariantSelect').value;
+  var manualUrl=document.getElementById('ugManualUrl').value.trim();
+  var result=document.getElementById('ugConfigResult');
+  try{
+    const r=await fetch('/api/upgrades/binary-config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({variant:variant,manual_url:manualUrl})});
+    const d=await r.json();
+    if(d.ok){
+      showToast('Binary config saved','success');
+      result.style.display='block';result.style.background='var(--green-bg)';result.style.color='var(--green)';
+      result.textContent='\u2705 Saved: '+variant+(manualUrl?' with custom URL':'');
+      _ugVariantsLoaded=false;
+      loadUpgrades();
+    } else {
+      showToast(d.error||'Save failed','error');
+      result.style.display='block';result.style.background='var(--red-bg)';result.style.color='var(--red)';
+      result.textContent='\u274C '+(d.error||'Save failed');
+    }
+  }catch(e){
+    showToast('Save error','error');
+    result.style.display='block';result.style.background='var(--red-bg)';result.style.color='var(--red)';
+    result.textContent='\u274C Network error';
+  }
+  setTimeout(function(){result.style.display='none';},5000);
 }
 async function doUpgradeDownload(){
   var btn=document.getElementById('ugDownloadBtn');
@@ -3807,7 +4026,7 @@ async function doUpgradeDownload(){
     result.textContent='\u274C Network error';
   }finally{
     btn.disabled=false;btn.textContent='\u2B07 Download Latest Binary';
-    setTimeout(function(){prog.style.display='none';},2000);
+    setTimeout(function(){prog.style.display='none';loadUpgrades();},2000);
   }
 }
 async function doUpgradeApply(){
@@ -3890,8 +4109,8 @@ async function loadNetHistory(hours,btn){
       var el=document.getElementById(id);if(!el)return;
       var diff=cur-prev;
       if(Math.abs(diff)<0.0001){el.textContent='\u2194 0'+suffix;el.className='stat-delta flat';}
-      else if(diff>0){el.textContent='\u25B2 +'+diff.toFixed(2)+suffix;el.className='stat-delta up';}
-      else{el.textContent='\u25BC '+diff.toFixed(2)+suffix;el.className='stat-delta down';}
+      else if(diff>0){el.textContent='\u25B2 +'+fmt(diff)+suffix;el.className='stat-delta up';}
+      else{el.textContent='\u25BC '+fmt(diff)+suffix;el.className='stat-delta down';}
     }
     document.getElementById('nhBondedRatio').textContent=(last.bonded_ratio||0).toFixed(2)+'%';
     document.getElementById('nhInflation').textContent=(last.inflation||0).toFixed(4)+'%';

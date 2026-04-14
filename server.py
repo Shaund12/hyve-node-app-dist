@@ -454,7 +454,7 @@ def _import_key_to_keyring(pk_hex: str):
         result = subprocess.run(
             [str(HYVED_BIN), "keys", "list", "--home", str(HYVED_HOME),
              "--keyring-backend", "test", "--output", "json"],
-            capture_output=True, text=True, timeout=10, env=env
+            capture_output=True, text=True, timeout=10, env=env, input="testtest\n"
         )
         keys = []
         for line in result.stdout.splitlines():
@@ -469,12 +469,12 @@ def _import_key_to_keyring(pk_hex: str):
             return
     except Exception:
         pass
-    # Import
+    # Import — new SDK v0.53.4 test keyring requires a passphrase (min 8 chars)
     try:
         result = subprocess.run(
             [str(HYVED_BIN), "keys", "unsafe-import-eth-key", "validator-operator", pk_hex,
              "--home", str(HYVED_HOME), "--keyring-backend", "test"],
-            capture_output=True, text=True, timeout=10, env=env
+            capture_output=True, text=True, timeout=10, env=env, input="testtest\ntesttest\n"
         )
         output = (result.stdout + result.stderr).strip()
         # Filter noisy warnings
@@ -496,7 +496,7 @@ def run_hyved_tx(args: list[str], password: str = "") -> dict:
            "--keyring-backend", "test", "--gas", "auto", "--gas-adjustment", "1.5",
            "--gas-prices", "10000000000ahyve", "--yes", "--output", "json"]
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, env=env)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, env=env, input="testtest\n")
         output = result.stdout + result.stderr
         for line in output.splitlines():
             line = line.strip()
@@ -651,7 +651,7 @@ async def _db_load_config(key: str) -> dict | None:
     return None
 
 async def _db_load_all_configs():
-    global _discord_config, _alert_config, _auto_compound_config, _failover_config
+    global _discord_config, _alert_config, _auto_compound_config, _failover_config, _upgrade_binary_config
     dc = await _db_load_config("discord")
     if dc:
         _discord_config = dc
@@ -664,6 +664,9 @@ async def _db_load_all_configs():
     fc = await _db_load_config("failover")
     if fc:
         _failover_config.update(fc)
+    uc = await _db_load_config("upgrade_binary")
+    if uc:
+        _upgrade_binary_config.update(uc)
 
 
 async def _db_record_metrics(data: dict):
@@ -1315,8 +1318,9 @@ async def get_tx_history():
 @app.get("/api/rewards-history")
 async def get_rewards_history():
     if not db_pool:
-        return {"data": [], "error": "PostgreSQL not available"}
+        return {"data": [], "summary": {}, "error": "PostgreSQL not available"}
     try:
+        # Hourly snapshots for charts (raw pending values + delegated/uptime/shade)
         rows = await db_pool.fetch("""
             SELECT DATE_TRUNC('hour', ts) AS hour,
                    MAX(rewards) AS rewards, MAX(commission) AS commission,
@@ -1326,9 +1330,74 @@ async def get_rewards_history():
             WHERE ts > NOW() - INTERVAL '7 days'
             GROUP BY hour ORDER BY hour
         """)
-        return {"data": [dict(r) for r in rows]}
+        # Hourly deltas for cumulative earnings chart
+        hourly_deltas = await db_pool.fetch("""
+            WITH ordered AS (
+                SELECT ts,
+                       commission - LAG(commission) OVER (ORDER BY ts) AS cd,
+                       rewards - LAG(rewards) OVER (ORDER BY ts) AS rd
+                FROM metrics_history
+            )
+            SELECT DATE_TRUNC('hour', ts) AS hour,
+                   COALESCE(SUM(GREATEST(cd, 0)), 0) AS comm_earned,
+                   COALESCE(SUM(GREATEST(rd, 0)), 0) AS rew_earned
+            FROM ordered
+            WHERE cd IS NOT NULL AND ts > NOW() - INTERVAL '7 days'
+            GROUP BY DATE_TRUNC('hour', ts)
+            ORDER BY hour
+        """)
+        # Daily earnings for summary
+        daily_deltas = await db_pool.fetch("""
+            WITH ordered AS (
+                SELECT ts,
+                       commission - LAG(commission) OVER (ORDER BY ts) AS cd,
+                       rewards - LAG(rewards) OVER (ORDER BY ts) AS rd
+                FROM metrics_history
+            )
+            SELECT DATE(ts) AS day,
+                   COALESCE(SUM(GREATEST(cd, 0)), 0) AS comm,
+                   COALESCE(SUM(GREATEST(rd, 0)), 0) AS rew
+            FROM ordered WHERE cd IS NOT NULL
+            GROUP BY DATE(ts) ORDER BY day
+        """)
+        # Build cumulative earnings from hourly deltas
+        cumulative = []
+        running_comm = 0
+        running_rew = 0
+        for h in hourly_deltas:
+            running_comm += float(h["comm_earned"] or 0)
+            running_rew += float(h["rew_earned"] or 0)
+            cumulative.append({
+                "hour": h["hour"],
+                "comm_total": running_comm,
+                "rew_total": running_rew,
+                "combined": running_comm + running_rew,
+            })
+        # Summary stats
+        total_comm = sum(float(d["comm"] or 0) for d in daily_deltas)
+        total_rew = sum(float(d["rew"] or 0) for d in daily_deltas)
+        week_comm = sum(float(d["comm"] or 0) for d in daily_deltas[-7:])
+        week_rew = sum(float(d["rew"] or 0) for d in daily_deltas[-7:])
+        today_comm = float(daily_deltas[-1]["comm"]) if daily_deltas else 0
+        today_rew = float(daily_deltas[-1]["rew"]) if daily_deltas else 0
+        days_count = max(len(daily_deltas), 1)
+        return {
+            "data": [dict(r) for r in rows],
+            "cumulative": [dict(c) for c in cumulative],
+            "daily": [{"day": d["day"].isoformat(), "comm": float(d["comm"]), "rew": float(d["rew"])} for d in daily_deltas],
+            "summary": {
+                "total_comm": total_comm,
+                "total_rew": total_rew,
+                "week_comm": week_comm,
+                "week_rew": week_rew,
+                "today_comm": today_comm,
+                "today_rew": today_rew,
+                "avg_daily_comm": total_comm / days_count,
+                "avg_daily_rew": total_rew / days_count,
+            },
+        }
     except Exception as e:
-        return {"data": [], "error": str(e)}
+        return {"data": [], "summary": {}, "error": str(e)}
 
 
 # ── API: Performance Benchmarks ─────────────────────────────────────────────
@@ -3013,26 +3082,47 @@ async def get_resource_history():
 # ── API: Commission Income ───────────────────────────────────────────────────
 @app.get("/api/commission-income")
 async def get_commission_income():
-    """Commission earned per day from metrics_history snapshots."""
+    """Commission + rewards earned per day from metrics_history deltas."""
     if not db_pool:
-        return {"daily": [], "total": 0}
+        return {"daily": [], "total": 0, "total_rewards": 0}
     try:
+        # Use delta approach: sum positive changes between consecutive snapshots.
+        # This correctly handles claim resets (negative deltas are ignored).
         rows = await db_pool.fetch("""
-            SELECT DATE(ts) as day, MAX(commission) as max_comm, MIN(commission) as min_comm
-            FROM metrics_history
-            WHERE commission IS NOT NULL AND commission > 0
+            WITH ordered AS (
+                SELECT ts,
+                       commission,
+                       rewards,
+                       commission - LAG(commission) OVER (ORDER BY ts) AS comm_delta,
+                       rewards - LAG(rewards) OVER (ORDER BY ts) AS rew_delta
+                FROM metrics_history
+                WHERE commission IS NOT NULL OR rewards IS NOT NULL
+            )
+            SELECT DATE(ts) AS day,
+                   COALESCE(SUM(GREATEST(comm_delta, 0)), 0) AS comm_earned,
+                   COALESCE(SUM(GREATEST(rew_delta, 0)), 0) AS rew_earned
+            FROM ordered
+            WHERE comm_delta IS NOT NULL
             GROUP BY DATE(ts)
             ORDER BY day DESC LIMIT 90
         """)
         daily = []
-        total = 0
+        total_comm = 0
+        total_rew = 0
         for r in reversed(rows):
-            earned = max(0, (r["max_comm"] or 0) - (r["min_comm"] or 0))
-            daily.append({"day": r["day"].isoformat(), "earned": round(earned, 6)})
-            total += earned
-        return {"daily": daily, "total": round(total, 6)}
+            comm = float(r["comm_earned"] or 0)
+            rew = float(r["rew_earned"] or 0)
+            daily.append({
+                "day": r["day"].isoformat(),
+                "earned": comm,
+                "rewards": rew,
+                "total": comm + rew,
+            })
+            total_comm += comm
+            total_rew += rew
+        return {"daily": daily, "total": total_comm, "total_rewards": total_rew}
     except Exception:
-        return {"daily": [], "total": 0}
+        return {"daily": [], "total": 0, "total_rewards": 0}
 
 
 # ── API: Consensus Participation ─────────────────────────────────────────────
@@ -3160,11 +3250,70 @@ except ImportError:
     def _get_extra_libs(): return ""
 
 _upgrade_download_lock = asyncio.Lock()
+_upgrade_binary_config: dict = {"variant": "hyved", "manual_url": ""}
+
+
+def _get_effective_release_url() -> str:
+    """Return the manual override URL if set, otherwise the compiled default."""
+    manual = _upgrade_binary_config.get("manual_url", "").strip()
+    if manual:
+        return manual.rstrip("/")
+    return _get_binary_release_url()
+
+
+def _get_selected_variant() -> str:
+    """Return the selected binary variant name (e.g. 'hyved', 'hyved-arm64')."""
+    return _upgrade_binary_config.get("variant", "hyved") or "hyved"
+
+
+@app.get("/api/upgrades/variants")
+async def list_upgrade_variants():
+    """Scrape the release server index for available binary variants."""
+    url = _get_effective_release_url()
+    if not url:
+        return {"variants": [], "selected": _get_selected_variant(), "manual_url": _upgrade_binary_config.get("manual_url", "")}
+    variants = []
+    try:
+        async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+            r = await client.get(url + "/")
+            if r.status_code == 200:
+                import re
+                for m in re.finditer(r'<a href="(hyved[^"]*)">\1</a>\s+[\d-]+\s[\d:]+\s+(\d+)', r.text):
+                    name = m.group(1)
+                    size = int(m.group(2))
+                    if name.endswith(".sha256") or name.endswith(".sig"):
+                        continue
+                    variants.append({"name": name, "size": size})
+    except Exception:
+        pass
+    return {
+        "variants": variants,
+        "selected": _get_selected_variant(),
+        "manual_url": _upgrade_binary_config.get("manual_url", ""),
+    }
+
+
+@app.post("/api/upgrades/binary-config")
+async def save_upgrade_binary_config(request: Request):
+    """Save the selected binary variant and optional manual URL override."""
+    data = await request.json()
+    variant = (data.get("variant", "") or "").strip()
+    manual_url = (data.get("manual_url", "") or "").strip()
+    if variant:
+        _upgrade_binary_config["variant"] = variant
+    if manual_url != _upgrade_binary_config.get("manual_url", ""):
+        if manual_url and not manual_url.startswith("http"):
+            return JSONResponse({"error": "URL must start with http:// or https://"}, status_code=400)
+        _upgrade_binary_config["manual_url"] = manual_url
+    await _db_save_config("upgrade_binary", _upgrade_binary_config)
+    return {"ok": True, "config": _upgrade_binary_config}
+
 
 @app.get("/api/upgrades")
 async def get_upgrades():
     """Return current upgrade plan, binary status, and upgrade history."""
-    release_url = _get_binary_release_url()
+    release_url = _get_effective_release_url()
+    variant = _get_selected_variant()
     bin_dir = HYVE_NODE_DIR / "bin"
     hyved = bin_dir / "hyved"
     hyved_upgrade = bin_dir / "hyved.upgrade"
@@ -3209,7 +3358,7 @@ async def get_upgrades():
     if release_url:
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
-                r = await client.head(f"{release_url}/hyved")
+                r = await client.head(f"{release_url}/{variant}")
                 if r.status_code == 200:
                     remote_size = int(r.headers.get("content-length", "0"))
                     remote_last_modified = r.headers.get("last-modified", "")
@@ -3219,7 +3368,7 @@ async def get_upgrades():
         # Remote SHA256 (if available on server)
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
-                r = await client.get(f"{release_url}/hyved.sha256")
+                r = await client.get(f"{release_url}/{variant}.sha256")
                 if r.status_code == 200 and len(r.text.strip()) >= 64:
                     remote_sha256 = r.text.strip().split()[0][:64]
         except Exception:
@@ -3273,6 +3422,7 @@ async def get_upgrades():
         },
         "new_binary_available": new_binary_available,
         "release_url_configured": bool(release_url),
+        "selected_variant": variant,
         "upgrade_history": upgrade_history,
     }
 
@@ -3280,7 +3430,8 @@ async def get_upgrades():
 @app.post("/api/upgrades/download")
 async def download_upgrade_binary():
     """Download the latest hyved binary from the release server."""
-    release_url = _get_binary_release_url()
+    release_url = _get_effective_release_url()
+    variant = _get_selected_variant()
     if not release_url:
         return JSONResponse({"error": "Release server not available"}, status_code=400)
     if _upgrade_download_lock.locked():
@@ -3296,7 +3447,7 @@ async def download_upgrade_binary():
             h = hashlib.sha256()
             total = 0
             async with httpx.AsyncClient(timeout=600.0, follow_redirects=True) as client:
-                async with client.stream("GET", f"{release_url}/hyved") as resp:
+                async with client.stream("GET", f"{release_url}/{variant}") as resp:
                     resp.raise_for_status()
                     expected = int(resp.headers.get("content-length", "0"))
                     with open(tmp, "wb") as f:
