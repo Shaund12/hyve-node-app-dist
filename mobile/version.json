@@ -1,0 +1,6 @@
+{
+  "version": "1.6.1",
+  "url": "https://validator.pyvendr.com/mobile/hyve-mobile-1.6.1.apk",
+  "releaseNotes": "Fix rewards/commission decimal display for very small values",
+  "minVersion": "1.0"
+}
