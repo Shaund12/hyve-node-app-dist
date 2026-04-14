@@ -255,6 +255,15 @@ tr:hover td { background:color-mix(in srgb,var(--cyan) 3%,transparent); }
 
 .spinner { width:14px; height:14px; border:2px solid color-mix(in srgb,var(--cyan) 20%,transparent); border-top-color:var(--cyan); border-radius:50%; animation:spin 0.6s linear infinite; display:inline-block; }
 @keyframes spin { to{transform:rotate(360deg)} }
+.conn-banner { position:fixed; top:0; left:0; right:0; z-index:500; padding:6px 16px; font-size:12px; font-weight:600; text-align:center; background:rgba(220,38,38,0.9); color:#fff; backdrop-filter:blur(8px); transform:translateY(-100%); transition:transform 0.3s ease; }
+.conn-banner.show { transform:translateY(0); }
+.last-updated { font-size:10px; color:var(--text3); margin-left:8px; opacity:0.7; }
+.tally-bar-bg { height:6px; border-radius:3px; background:var(--bg); overflow:hidden; display:flex; margin-top:6px; }
+.tally-bar-bg > div { height:100%; transition:width 0.3s; }
+.vote-urgent { border-left:3px solid var(--red) !important; background:rgba(248,81,73,0.04) !important; }
+.vote-warn { border-left:3px solid var(--orange) !important; background:rgba(227,179,65,0.04) !important; }
+.needs-vote-badge { font-size:9px; background:rgba(248,81,73,0.15); color:var(--red); padding:2px 6px; border-radius:4px; font-weight:700; margin-left:8px; animation:pulse 2s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
 .highlight-row { background:rgba(34,211,238,0.04) !important; }
 .you-badge { font-size:10px; background:linear-gradient(135deg,rgba(34,211,238,0.15),rgba(163,113,247,0.12)); color:var(--cyan); padding:1px 8px; border-radius:6px; font-weight:700; margin-left:6px; border:1px solid rgba(34,211,238,0.2); }
 
@@ -575,11 +584,12 @@ kbd{display:inline-flex;align-items:center;padding:1px 5px;border-radius:4px;fon
 <body>
 <canvas id="particleCanvas"></canvas>
 
+<div id="connBanner" class="conn-banner">&#9888; Connection lost — reconnecting...</div>
 <div class="header">
   <div class="header-left">
     <div class="logo">H</div>
     <h1><span>Hyve</span> Validator</h1>
-    <div id="statusPill" class="status-pill offline"><span class="status-dot"></span><span id="statusText">Offline</span></div>
+    <div id="statusPill" class="status-pill offline"><span class="status-dot"></span><span id="statusText">Offline</span><span class="last-updated" id="lastUpdated"></span></div>
   </div>
   <div class="header-right">
     <button class="btn-green" id="btnStart" onclick="nodeAction('start')">&#9654; Start</button>
@@ -1875,6 +1885,15 @@ let rawLogLines=[];
 let rewardsHistChart=null,delegatedHistChart=null,uptimeHistChart=null,shadeHistChart=null;
 let earningsChart=null,cpuChart=null,memChart=null,diskRChart=null,peerHistChart=null,commChart=null;
 let calcAPR=0,pinnedTabs=[];
+let _wsBackoff=3000,_wsMaxBackoff=30000,_lastWsMsg=0;
+let _logWsBackoff=3000;
+
+// ── Safe Fetch (shows toast on error) ──
+async function safeFetch(url,opts){
+  const r=await fetch(url,opts);
+  if(!r.ok) throw new Error(r.status+' '+r.statusText);
+  return r;
+}
 
 // ── Number Formatting ──
 const fmt = n => {
@@ -2231,7 +2250,7 @@ async function loadSystemStats(){
       }
     }
     document.getElementById('sysTemps').innerHTML=tempHtml||'<span style="color:var(--text3);font-size:12px">No sensors available</span>';
-  }catch(e){}
+  }catch(e){showToast('System stats failed to load','error');}
 }
 
 // ── RPC Monitor ──
@@ -2250,7 +2269,7 @@ async function loadRpcMetrics(){
       const sc=r.status>=400?'color:var(--red)':r.status>=300?'color:var(--orange)':'color:var(--green)';
       return '<tr><td class="mono" style="font-size:11px">'+t+'</td><td>'+r.method+'</td><td class="mono" style="font-size:11px">'+r.path+'</td><td class="mono" style="'+sc+'">'+r.status+'</td><td class="mono">'+r.duration_ms+'ms</td><td class="mono" style="font-size:11px">'+r.ip+'</td></tr>';
     }).join('')||'<tr><td colspan="6" style="text-align:center;color:var(--text3)">No requests recorded</td></tr>';
-  }catch(e){}
+  }catch(e){showToast('RPC metrics failed to load','error');}
 }
 
 // ── Chain Info ──
@@ -2272,7 +2291,7 @@ async function loadChainInfo(){
         return '<div class="param-item"><span class="param-label">'+name+'</span><span class="param-value mono" style="font-size:12px">'+amt+'</span></div>';
       }).join('');
     }
-  }catch(e){}
+  }catch(e){showToast('Chain info failed to load','error');}
 }
 
 // ── Strategy ──
@@ -2334,13 +2353,34 @@ async function loadGovernance(){
     const r=await fetch('/api/governance');const d=await r.json();
     const props=d.proposals||[];
     if(!props.length){document.getElementById('govList').innerHTML='<span style="color:var(--text3)">No proposals found</span>';return;}
-    document.getElementById('govList').innerHTML=props.map(p=>{
+    // Sort: voting period first, then by end time urgency
+    const sorted=[...props].sort((a,b)=>{
+      const aV=a.status==='VOTING_PERIOD'?0:1;
+      const bV=b.status==='VOTING_PERIOD'?0:1;
+      if(aV!==bV) return aV-bV;
+      if(a.voting_end_time&&b.voting_end_time) return new Date(a.voting_end_time)-new Date(b.voting_end_time);
+      return 0;
+    });
+    document.getElementById('govList').innerHTML=sorted.map(p=>{
       const statusCls=p.status;
       const isVoting=p.status==='VOTING_PERIOD';
       const myVote=p.my_vote;
       const tally=p.tally||{};
       const totalVotes=(tally.yes||0)+(tally.no||0)+(tally.abstain||0)+(tally.veto||0);
       const yesPct=totalVotes>0?((tally.yes/totalVotes)*100).toFixed(1):0;
+      const noPct=totalVotes>0?((tally.no/totalVotes)*100).toFixed(1):0;
+      const abstainPct=totalVotes>0?((tally.abstain/totalVotes)*100).toFixed(1):0;
+      const vetoPct=totalVotes>0?((tally.veto/totalVotes)*100).toFixed(1):0;
+      // Deadline urgency
+      let urgencyClass='',deadlineHtml='';
+      if(p.voting_end_time&&isVoting){
+        const hoursLeft=(new Date(p.voting_end_time)-Date.now())/3600000;
+        if(hoursLeft<=0){urgencyClass='';deadlineHtml='<div style="font-size:11px;color:var(--red);font-weight:600">Voting ended</div>';}
+        else if(hoursLeft<=24){urgencyClass='vote-urgent';deadlineHtml='<div style="font-size:11px;color:var(--red);font-weight:600">\u26A0 Ends in '+Math.round(hoursLeft)+'h!</div>';}
+        else if(hoursLeft<=72){urgencyClass='vote-warn';deadlineHtml='<div style="font-size:11px;color:var(--orange)">Ends in '+Math.round(hoursLeft/24)+'d '+Math.round(hoursLeft%24)+'h</div>';}
+        else{deadlineHtml='<div style="font-size:11px;color:var(--text3)">Ends: '+new Date(p.voting_end_time).toLocaleString()+'</div>';}
+      }
+      const needsVote=isVoting&&!myVote;
       let voteHtml='';
       if(isVoting){
         voteHtml='<div style="display:flex;gap:6px;margin-top:8px">'+
@@ -2348,20 +2388,22 @@ async function loadGovernance(){
           '<button class="vote-btn no'+(myVote==='NO'?' active':'')+'" onclick="castVote(\''+p.id+'\',\'no\')">No</button>'+
           '<button class="vote-btn abstain'+(myVote==='ABSTAIN'?' active':'')+'" onclick="castVote(\''+p.id+'\',\'abstain\')">Abstain</button>'+
           '<button class="vote-btn veto'+(myVote==='NO_WITH_VETO'?' active':'')+'" onclick="castVote(\''+p.id+'\',\'no_with_veto\')">Veto</button>'+
-          (myVote?'<span style="font-size:11px;color:var(--green);align-self:center;margin-left:8px">Voted: '+myVote+'</span>':'')+
+          (myVote?'<span style="font-size:11px;color:var(--green);align-self:center;margin-left:8px">\u2705 Voted: '+myVote+'</span>':'')+
           '</div>';
       }
-      return '<div style="padding:16px;border-bottom:1px solid var(--border)">'+
+      // Tally bar
+      const tallyBar=totalVotes>0?'<div class="tally-bar-bg"><div style="width:'+yesPct+'%;background:var(--green)"></div><div style="width:'+noPct+'%;background:var(--red)"></div><div style="width:'+abstainPct+'%;background:var(--text3)"></div><div style="width:'+vetoPct+'%;background:var(--orange)"></div></div>':'';
+      return '<div class="'+urgencyClass+'" style="padding:16px;border-bottom:1px solid var(--border)">'+
         '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'+
-        '<span style="font-weight:700;font-size:14px">#'+p.id+' '+escapeHtml(p.title)+'</span>'+
+        '<span style="font-weight:700;font-size:14px">#'+p.id+' '+escapeHtml(p.title)+(needsVote?'<span class="needs-vote-badge">NEEDS VOTE</span>':'')+'</span>'+
         '<span class="prop-status '+statusCls+'">'+p.status.replace(/_/g,' ')+'</span></div>'+
         '<div style="font-size:12px;color:var(--text2);margin-bottom:8px">'+escapeHtml(p.summary||'')+'</div>'+
-        (totalVotes>0?'<div style="display:flex;gap:12px;font-size:11px;color:var(--text3);margin-bottom:6px">'+
+        (totalVotes>0?'<div style="display:flex;gap:12px;font-size:11px;color:var(--text3);margin-bottom:4px">'+
           '<span style="color:var(--green)">Yes: '+fmtShort(tally.yes)+' ('+yesPct+'%)</span>'+
-          '<span style="color:var(--red)">No: '+fmtShort(tally.no)+'</span>'+
-          '<span>Abstain: '+fmtShort(tally.abstain)+'</span>'+
-          '<span style="color:var(--orange)">Veto: '+fmtShort(tally.veto)+'</span></div>':'')+
-        (p.voting_end_time&&isVoting?'<div style="font-size:11px;color:var(--text3)">Voting ends: '+new Date(p.voting_end_time).toLocaleString()+'</div>':'')+
+          '<span style="color:var(--red)">No: '+fmtShort(tally.no)+' ('+noPct+'%)</span>'+
+          '<span>Abstain: '+fmtShort(tally.abstain)+' ('+abstainPct+'%)</span>'+
+          '<span style="color:var(--orange)">Veto: '+fmtShort(tally.veto)+' ('+vetoPct+'%)</span></div>'+tallyBar:'')+
+        deadlineHtml+
         voteHtml+'</div>';
     }).join('');
   }catch(e){document.getElementById('govList').innerHTML='<span style="color:var(--red)">Failed to load</span>';}
@@ -2391,7 +2433,7 @@ async function loadDelegators(){
         '<td><div style="display:flex;align-items:center;gap:6px"><div style="width:80px;height:6px;background:var(--bg);border-radius:3px;overflow:hidden"><div style="width:'+Math.min(dl.share_pct,100)+'%;height:100%;background:var(--cyan);border-radius:3px"></div></div><span style="font-size:11px;color:var(--text2)">'+dl.share_pct+'%</span></div></td></tr>'
       ).join('');
     }
-  }catch(e){}
+  }catch(e){showToast('Delegator data failed to load','error');}
 }
 
 // ── Network Overview ──
@@ -2407,7 +2449,7 @@ async function loadNetwork(){
     document.getElementById('netAvgComm').textContent=(d.avg_commission||0)+'%';
     document.getElementById('netCommRange').textContent=(d.min_commission||0)+'% - '+(d.max_commission||0)+'%';
     document.getElementById('netActiveProps').textContent=d.active_proposals||0;
-  }catch(e){}
+  }catch(e){showToast('Network data failed to load','error');}
 }
 
 // ── TX History ──
@@ -2432,7 +2474,7 @@ async function loadTxHistory(){
       else if(evm.contract){details+='<span class="mono" style="font-size:10px;color:var(--text3)">'+evm.contract.slice(0,10)+'&hellip;</span>';}
       return '<tr><td class="mono">'+fmtInt(tx.height)+'</td><td class="mono" style="font-size:11px" title="'+escapeHtml(hashTitle)+'"><a href="https://explorer.hyvechain.com/tx/'+(evm.evm_hash||tx.hash)+'" target="_blank" style="color:var(--cyan);text-decoration:none">'+hash+'</a></td><td>'+types+'</td><td>'+details+'</td><td>'+status+'</td><td class="mono" style="font-size:11px">'+fmtInt(tx.gas_used)+'/'+fmtInt(tx.gas_wanted)+'</td><td style="font-size:11px;color:var(--text2)">'+timeAgo(tx.timestamp)+'</td></tr>';
     }).join(''):'<tr><td colspan="7" style="text-align:center;color:var(--text3)">No transactions found</td></tr>';
-  }catch(e){}
+  }catch(e){showToast('TX history failed to load','error');}
 }
 
 // ── Rewards History ──
@@ -2533,7 +2575,7 @@ async function loadBenchmarks(){
       '<div class="param-item"><span class="param-label">Missed Blocks</span><span class="param-value" style="color:'+(ours.missed_blocks>100?'var(--red)':'var(--green)')+'">'+fmtInt(ours.missed_blocks||0)+'</span></div>'+
       '<div class="param-item"><span class="param-label">Network Avg Commission</span><span class="param-value">'+net.avg_commission+'%</span></div>'+
       '<div class="param-item"><span class="param-label">Network Avg Stake</span><span class="param-value">'+fmtShort(net.avg_stake)+' HYVE</span></div>';
-  }catch(e){}
+  }catch(e){showToast('Benchmarks failed to load','error');}
 }
 
 // ── Alerts ──
@@ -2695,6 +2737,8 @@ function updateDashboard(data){
   const st=data.status||{};
   const sk=data.staking||{};
   currentStatus=st; currentStaking=sk;
+  // Update last-updated timestamp
+  document.getElementById('lastUpdated').textContent='Updated '+new Date().toLocaleTimeString();
   const running=st.running;
   const pill=document.getElementById('statusPill');
   pill.className='status-pill '+(!running?'offline':(st.sync?.catching_up?'syncing':'online'));
@@ -2849,15 +2893,17 @@ async function nodeAction(action){
 function connectLiveWs(){
   const p=location.protocol==='https:'?'wss':'ws';
   wsLive=new WebSocket(p+'://'+location.host+'/ws/live');
-  wsLive.onmessage=e=>{try{updateDashboard(JSON.parse(e.data));}catch(ex){}};
-  wsLive.onclose=()=>setTimeout(connectLiveWs,3000);
+  wsLive.onopen=()=>{_wsBackoff=3000;document.getElementById('connBanner').classList.remove('show');};
+  wsLive.onmessage=e=>{try{_lastWsMsg=Date.now();updateDashboard(JSON.parse(e.data));}catch(ex){}};
+  wsLive.onclose=()=>{document.getElementById('connBanner').classList.add('show');setTimeout(connectLiveWs,_wsBackoff);_wsBackoff=Math.min(_wsBackoff*2,_wsMaxBackoff);};
   wsLive.onerror=()=>wsLive.close();
 }
 function connectLogWs(){
   const p=location.protocol==='https:'?'wss':'ws';
   wsLogs=new WebSocket(p+'://'+location.host+'/ws/logs');
+  wsLogs.onopen=()=>{_logWsBackoff=3000;};
   wsLogs.onmessage=e=>{try{renderLogs(JSON.parse(e.data).lines||[]);}catch(ex){}};
-  wsLogs.onclose=()=>{wsLogs=null;};
+  wsLogs.onclose=()=>{wsLogs=null;setTimeout(()=>{if(document.getElementById('tab-logs')?.style.display!=='none')connectLogWs();},_logWsBackoff);_logWsBackoff=Math.min(_logWsBackoff*2,_wsMaxBackoff);};
 }
 async function loadHistory(){
   try{const r=await fetch('/api/history');const d=await r.json();historyData=d.history||[];}catch(e){}
@@ -2871,6 +2917,14 @@ loadPinnedTabs();
 connectLiveWs();
 setInterval(loadHistory,120000);
 setInterval(function(){try{fetch('/api/health-score').then(r=>r.json()).then(d=>{var el=document.getElementById('tickHealth');var el2=document.getElementById('tickHealth2');if(el)el.textContent=Math.round(d.score||0)+'/100';if(el2)el2.textContent=Math.round(d.score||0)+'/100';}).catch(function(){});}catch(e){}},60000);
+// Stale data detector — warn if no WS message in 15s
+setInterval(function(){
+  if(_lastWsMsg&&Date.now()-_lastWsMsg>15000){
+    var el=document.getElementById('lastUpdated');
+    var secs=Math.round((Date.now()-_lastWsMsg)/1000);
+    el.textContent='Stale ('+secs+'s ago)';el.style.color='var(--orange)';
+  }else{var el=document.getElementById('lastUpdated');if(el)el.style.color='';}
+},5000);
 
 // ── Live Block Explorer ──
 let _taxData=[];
